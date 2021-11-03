@@ -62,6 +62,7 @@ def step(action):
     if done:
         print('done!')
         store_demo(demo, args.env_name, view_mode)
+        demo.clear()
         env.reset()    
 
     update_obs()

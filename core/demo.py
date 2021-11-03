@@ -11,13 +11,13 @@ class Demonstration:
     def __init__(self):
         pass
 
-    def add(self, obs: np.ndarray, action, depth_map: np.ndarray = None):
+    def add(self, obs: np.ndarray, action, depth_map: np.ndarray = None) -> None:
         self.observations.append(obs.copy())
         self.actions.append(action)  
         if depth_map is not None:
             self.depth_maps.append(depth_map.copy())
     
-    def clear(self):
+    def clear(self) -> None:
         self.observations = []
         self.actions = []
         self.depth_maps = []
@@ -29,15 +29,14 @@ class Demonstration:
             'depth_maps': self.depth_maps
         }
     
-    def setDict(self, dict: Dict[str, List]):
+    def setDict(self, demo_dict: Dict[str, List]) -> None:
         for field in ['observations', 'actions', 'depth_maps']:
-            assert field in dict
-        
-        self.observations = dict['observations']
-        self.actions = dict['actions']
-        self.depth_maps = dict['depth_maps']
+            assert field in demo_dict
+        self.observations = demo_dict['observations']
+        self.actions = demo_dict['actions']
+        self.depth_maps = demo_dict['depth_maps']
 
-    def play(self):
+    def play(self) -> None:
         show_depth_maps = len(self.depth_maps) > 0
         if show_depth_maps:
             fig, (ax_obs, ax_dm) = plt.subplots(1, 2)

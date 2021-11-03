@@ -34,3 +34,10 @@ from core.utils import load_demo
 d = load_demo('/*SPECIFY PATH*/')
 d.play() # loads a matplotlib looped animation
 ```
+
+### Team can add datasets and demos on google drive here
+
+https://drive.google.com/drive/folders/1IF5-IGnkqwf6dR63lHx6BIPFEPWPiVH-?usp=sharing
+
+Reason - could connect with colab hopefully
+*TODO* remove editable link when making repo public
