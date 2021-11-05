@@ -1,4 +1,4 @@
-from core.dataset import Dataset
+from core.dataset import MiniWorldDataset
 from core.demo import Demonstration
 import pickle
 import os
@@ -37,9 +37,3 @@ def create_dataset(env_name: str, view_mode: str, dataset_fname: str, demos_fold
     with open(dataset_fname, 'wb') as fp:
         pickle.dump(dataset, fp)
     print(f'stored dataset at {dataset_fname} with {len(dataset["obs"])} records')
-
-def load_dataset(dataset_fname: str) -> Dataset:
-    d = Dataset()
-    with open(dataset_fname, 'rb') as fp:
-        d.setDict(pickle.load(fp))
-    return d

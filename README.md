@@ -35,7 +35,19 @@ d = load_demo('/*SPECIFY PATH*/')
 d.play() # loads a matplotlib looped animation
 ```
 
-### Team can add datasets and demos on google drive here
+### Training Behavior Cloning
+```bash
+$> python -m agents.behavior_clone
+```
+
+### Running a trained model (based on a fixed architecture defined in agents/net.py)
+```bash
+$> python -m agents.run_model --model_path {specify the model.pt to run}
+```
+
+*Note*: that top-view is not accounted for and the scripts need more parametrization in terms of arguments
+
+### Team can add datasets, models and demos on google drive here
 
 https://drive.google.com/drive/folders/1IF5-IGnkqwf6dR63lHx6BIPFEPWPiVH-?usp=sharing
 
