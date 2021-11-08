@@ -1,8 +1,6 @@
 """
-This script allows you to manually control the simulator
-using the keyboard arrows.
+This script allows you to run a trained behavior clone model interactively on an env
 """
-
 import argparse
 import pyglet
 import math
@@ -11,9 +9,9 @@ import gym
 import gym_miniworld
 import torch
 from torchvision import transforms
+from PIL import Image
 
 from agents.net import MLP, Encoder
-from core.transforms import NormalizeTensor, RandomCrop, ToTensor
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--env-name', default='MiniWorld-Hallway-v0')
@@ -34,18 +32,22 @@ if args.domain_rand:
 
 view_mode = 'top' if args.top_view else 'agent'
 
+normalizer = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                std=[0.229, 0.224, 0.225])
+
 encoder = Encoder()
 mlp = MLP()
 trsf = transforms.Compose([
-    RandomCrop(50),
-    ToTensor(),
-    NormalizeTensor()
+    transforms.RandomResizedCrop(50, scale=(0.2, 1.)),
+    transforms.ToTensor(),
+    normalizer
 ])
 
 # load model
 model_checkpoint = torch.load(args.model_path)
 encoder.load_state_dict(model_checkpoint['encoder_dict'])
 mlp.load_state_dict(model_checkpoint['mlp_dict'])
+
 encoder.eval()
 mlp.eval()
 
@@ -53,8 +55,8 @@ mlp.eval()
 env.render('pyglet', view=view_mode)
 
 def agent_step(t):
-    sample = {'obs': get_obs(), 'action': -1}
-    inp = trsf(sample)['obs']
+    x = Image.fromarray(get_obs())
+    inp = trsf(x)
     output = encoder(inp[np.newaxis, :, :, :])
     output = mlp(output)
     output = output.clone().detach()
