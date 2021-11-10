@@ -1,4 +1,6 @@
 import torch
+import argparse
+import random
 from torch import nn
 from torch.nn import functional as F
 import os
@@ -23,6 +25,7 @@ parser.add_argument('--data_path', default='', type=str, help='image dataset fol
 parser.add_argument('--batch_size', default=64, type=int, help='training batch size')
 parser.add_argument('--nb_epochs', default=20, type=int, help='number of epochs')
 parser.add_argument('--lr', default=1e-3, type=float, help='learning rate')
+parser.add_argument('--margin', type=float, default=2.0, help='learning rate')
 parser.add_argument('--seed', default=102, type=int, help='random seed')
 args = parser.parse_args()
 
