@@ -6,9 +6,9 @@ class ModelMetrics:
     evals = {}
     epoch_metrics = {}
 
-    def __init__(self, name, metrics_path) -> None:
+    def __init__(self, name, metrics_path=None) -> None:
         self.name = name
-        if metrics_path:
+        if metrics_path is not None:
             with open(metrics_path, 'rb') as f:
                 d = pickle.load(f)
                 self.setDict(d)

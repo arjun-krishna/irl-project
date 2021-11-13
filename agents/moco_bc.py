@@ -35,8 +35,9 @@ args = parser.parse_args()
 
 if not os.path.exists('models/'):
     os.makedirs('models/')
-MODEL_PATH = 'models/' + Path(args.data_path).parts[-1] + '_moco_bc.pt'
-MODEL_METRICS_PATH = 'models/' + Path(args.data_path).parts[-1] + '_moco_bc.pickle'
+MODEL_NAME = Path(args.data_path).parts[-1] + '_moco_bc'
+MODEL_PATH = 'models/' + MODEL_NAME + '.pt'
+MODEL_METRICS_PATH = 'models/' + MODEL_NAME + '.pickle'
 
 random.seed(args.seed)
 torch.manual_seed(args.seed)
@@ -169,7 +170,7 @@ encoder_q.train()
 mlp.train()
 
 metric_loss = []
-model_metrics = model_metrics.ModelMetrics()
+model_metrics = model_metrics.ModelMetrics(MODEL_NAME)
 
 for epoch in range(args.nb_epochs):
     # adjust_learning_rate(optimizer, epoch)

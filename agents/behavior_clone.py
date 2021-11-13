@@ -33,8 +33,9 @@ args = parser.parse_args()
 
 if not os.path.exists('models/'):
     os.makedirs('models/')
-MODEL_PATH = 'models/' + Path(args.data_path).parts[-1] + '_bc.pt'
-MODEL_METRICS_PATH = 'models/' + Path(args.data_path).parts[-1] + '_bc.pickle'
+MODEL_NAME = Path(args.data_path).parts[-1] + '_bc'
+MODEL_PATH = 'models/' + MODEL_NAME + '.pt'
+MODEL_METRICS_PATH = 'models/' + MODEL_NAME + '.pickle'
 
 random.seed(args.seed)
 torch.manual_seed(args.seed)
