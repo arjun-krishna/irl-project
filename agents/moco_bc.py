@@ -3,26 +3,32 @@ import argparse
 import random
 import os
 from pathlib import Path
+import gym
+import gym_miniworld
 import numpy as np
 from torch import nn
 import torch.optim as optim
 from torchvision.transforms.transforms import RandomApply
+from core import model_metrics
 from core.transforms import GaussianBlur, TwoCropsTransform
 from torchvision import transforms, datasets
 from torch.utils.data import DataLoader
 from agents.net import MLP, Encoder
+from PIL import Image
+import pickle
 
 # ignore warnings
 import warnings
 warnings.filterwarnings("ignore")
 
-import matplotlib.pyplot as plt
-plt.style.use('ggplot')
-
 parser = argparse.ArgumentParser()
+parser.add_argument('--env-name', default='MiniWorld-Hallway-v0', type=str, help='env name to evaluate on')
+parser.add_argument('--top_view', action='store_true', help='show the top view instead of the agent view')
+parser.add_argument('--domain-rand', action='store_true', help='enable domain randomization')
 parser.add_argument('--data_path', default='', type=str, help='image dataset folder to train model from')
 parser.add_argument('--batch_size', default=64, type=int, help='training batch size')
 parser.add_argument('--nb_epochs', default=20, type=int, help='number of epochs')
+parser.add_argument('--eval_epoch', default=10, type=int, help='run evaluate after specified epochs')
 parser.add_argument('--lr', default=1e-3, type=float, help='learning rate')
 parser.add_argument('--seed', default=102, type=int, help='random seed')
 args = parser.parse_args()
@@ -30,6 +36,7 @@ args = parser.parse_args()
 if not os.path.exists('models/'):
     os.makedirs('models/')
 MODEL_PATH = 'models/' + Path(args.data_path).parts[-1] + '_moco_bc.pt'
+MODEL_METRICS_PATH = 'models/' + Path(args.data_path).parts[-1] + '_moco_bc.pickle'
 
 random.seed(args.seed)
 torch.manual_seed(args.seed)
@@ -65,7 +72,7 @@ def moco_loss(q, k, queue):
 params = list(encoder_q.parameters()) + list(mlp.parameters())
 optimizer = optim.Adam(params, lr=args.lr)
 
-normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+normalizer = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                 std=[0.229, 0.224, 0.225])
 
 augmentation = [
@@ -77,7 +84,7 @@ augmentation = [
     transforms.RandomApply([GaussianBlur([.1, .2])], p=0.5), 
     # do not apply horizontal flip (action could change based on that - not label preserving)
     transforms.ToTensor(),
-    normalize
+    normalizer
 ]
 
 train_dataset = datasets.ImageFolder(
@@ -86,6 +93,54 @@ train_dataset = datasets.ImageFolder(
 
 train_loader = DataLoader(
     train_dataset, args.batch_size, shuffle=True, pin_memory=True, drop_last=True)
+
+def evaluateInEnv():
+    encoder_q.eval()
+    mlp.eval()
+    env = gym.make(args.env_name)
+    env.reset()
+    get_obs = env.render_top_view if args.top_view else env.render_obs
+
+    if args.domain_rand:
+        env.domain_rand = True
+
+    NUM_EPISODES = 100
+
+    metric_steps = []
+    metric_success = []
+
+    trsf = transforms.Compose([
+        transforms.RandomResizedCrop(50, scale=(0.2, 1.)),
+        transforms.ToTensor(),
+        normalizer
+    ])
+
+
+    for i in range(NUM_EPISODES):
+        done = False
+        steps = 0
+        while not done:
+            x = Image.fromarray(get_obs())
+            inp = trsf(x)
+            output = encoder_q(inp[np.newaxis, :, :, :])
+            output = mlp(output)
+            output = output.clone().detach()
+            action = output[0].argmax().item()
+
+            _, reward, done, _ = env.step(action)
+            steps += 1
+
+            if done:
+                env.reset()
+                metric_success.append(reward > 0)
+                metric_steps.append(steps)
+    d = {
+        'success_rate': np.mean(metric_success),
+        'metric_steps': metric_steps
+    }
+    encoder_q.train()
+    mlp.train()
+    return d
 
 queue = None
 # initialize queue
@@ -114,6 +169,7 @@ encoder_q.train()
 mlp.train()
 
 metric_loss = []
+model_metrics = model_metrics.ModelMetrics()
 
 for epoch in range(args.nb_epochs):
     # adjust_learning_rate(optimizer, epoch)
@@ -162,16 +218,28 @@ for epoch in range(args.nb_epochs):
     avg_moco_loss = np.mean(epoch_loss['moco'])
     avg_loss = np.mean(epoch_loss['loss'])
     print(f"Epoch {epoch} | BC-Loss={avg_bc_loss} | Moco-Loss={avg_moco_loss} | Loss={avg_loss}")
-    metric_loss.append(avg_loss)
+    model_metrics.add_loss(avg_loss)
+    model_metrics.add_epoch_metric(epoch, {
+        'bc_loss': avg_bc_loss,
+        'moco_loss': avg_moco_loss
+    })
+    if epoch != 0 and epoch % args.eval_epoch == 0:
+        eval_result = evaluateInEnv()
+        model_metrics.add_eval(epoch, eval_result) 
+
+eval_result = evaluateInEnv()
+model_metrics.add_eval(-1, eval_result) 
 
 torch.save({
     'encoder_dict': encoder_q.state_dict(),
     'mlp_dict': mlp.state_dict()
 }, MODEL_PATH)
 
+with open(MODEL_METRICS_PATH, 'wb') as fp:
+    pickle.dump(model_metrics.getDict(), fp)
 
-plt.plot(range(1, args.nb_epochs + 1), metric_loss, '-bo')
-plt.title('Average Loss vs Epoch')
-plt.xlabel('epoch')
-plt.ylabel('Avg. Loss')
-plt.show()
+# plt.plot(range(1, args.nb_epochs + 1), metric_loss, '-bo')
+# plt.title('Average Loss vs Epoch')
+# plt.xlabel('epoch')
+# plt.ylabel('Avg. Loss')
+# plt.show()
