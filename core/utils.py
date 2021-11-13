@@ -1,5 +1,7 @@
 from core.dataset import MiniWorldDataset
 from core.demo import Demonstration
+from PIL import Image
+import numpy as np
 import pickle
 import os
 import time
@@ -37,3 +39,21 @@ def create_dataset(env_name: str, view_mode: str, dataset_fname: str, demos_fold
     with open(dataset_fname, 'wb') as fp:
         pickle.dump(dataset, fp)
     print(f'stored dataset at {dataset_fname} with {len(dataset["obs"])} records')
+
+def create_image_dataset(env_name: str, view_mode: str, dataset_root: str = 'dataset', demos_folder: str = 'demos', num_demos=250, seed=42) -> None:
+    demos_dir_path = os.path.join(demos_folder, env_name, view_mode, '*')
+    counter = 0
+    all_demos = [demo_file for demo_file in glob.glob(demos_dir_path)]
+    np.random.seed(seed)
+    selected_demos = np.random.choice(all_demos, size=num_demos, replace=False)
+    dataset_dir = os.path.join(dataset_root, env_name, view_mode, 'D'+str(num_demos))
+    for demo_file in selected_demos:
+        d = load_demo(demo_file)
+        for (obs, a) in zip(d.observations, d.actions):
+            im = Image.fromarray(obs)
+            p = os.path.join(dataset_dir, str(a.value))
+            if not os.path.exists(p):
+                os.makedirs(p)
+            im.save(os.path.join(p, str(counter) + '.png'))
+            counter += 1
+    print('Done writing image folder with labels')
