@@ -107,7 +107,7 @@ cross_entropy = nn.CrossEntropyLoss(weight=class_weights)
 params = list(encoder.parameters()) + list(mlp.parameters())
 optimizer = optim.Adam(params, lr=args.lr)
 
-model_metrics = ModelMetrics()
+model_metrics = ModelMetrics('bc')
 
 encoder.train()
 mlp.train()
@@ -129,12 +129,13 @@ for epoch in range(args.nb_epochs):
     
     model_metrics.add_loss(avg_loss)
 
-    if epoch != 0 and epoch % args.eval_epoch == 0:
+    if (epoch+1) % args.eval_epoch == 0:
         eval_result = evaluateInEnv()
         model_metrics.add_eval(epoch, eval_result) 
-        
-eval_result = evaluateInEnv()
-model_metrics.add_eval(epoch, eval_result) 
+
+if args.nb_epochs%args.eval_epoch!=0:        
+    eval_result = evaluateInEnv()
+    model_metrics.add_eval(epoch, eval_result) 
 
 torch.save({
     'encoder_dict': encoder.state_dict(),
