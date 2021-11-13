@@ -108,7 +108,7 @@ cross_entropy = nn.CrossEntropyLoss(weight=class_weights)
 params = list(encoder.parameters()) + list(mlp.parameters())
 optimizer = optim.Adam(params, lr=args.lr)
 
-model_metrics = ModelMetrics('bc')
+model_metrics = ModelMetrics(MODEL_NAME)
 
 encoder.train()
 mlp.train()
