@@ -9,11 +9,13 @@ import numpy as np
 from torch import nn
 import torch.optim as optim
 from torchvision.transforms.transforms import RandomApply
+from core import model_metrics
 from core.transforms import GaussianBlur, TwoCropsTransform
 from torchvision import transforms, datasets
 from torch.utils.data import DataLoader
 from agents.net import MLP, Encoder
 from PIL import Image
+import pickle
 
 # ignore warnings
 import warnings
@@ -33,8 +35,9 @@ args = parser.parse_args()
 
 if not os.path.exists('models/'):
     os.makedirs('models/')
-MODEL_PATH = 'models/' + Path(args.data_path).parts[-1] + '_moco_bc.pt'
-MODEL_METRICS_PATH = 'models/' + Path(args.data_path).parts[-1] + '_moco_bc.pickle'
+MODEL_NAME = Path(args.data_path).parts[-1] + '_moco_bc'
+MODEL_PATH = 'models/' + MODEL_NAME + '.pt'
+MODEL_METRICS_PATH = 'models/' + MODEL_NAME + '.pickle'
 
 random.seed(args.seed)
 torch.manual_seed(args.seed)
@@ -167,6 +170,7 @@ encoder_q.train()
 mlp.train()
 
 metric_loss = []
+model_metrics = model_metrics.ModelMetrics(MODEL_NAME)
 
 for epoch in range(args.nb_epochs):
     # adjust_learning_rate(optimizer, epoch)
@@ -215,13 +219,25 @@ for epoch in range(args.nb_epochs):
     avg_moco_loss = np.mean(epoch_loss['moco'])
     avg_loss = np.mean(epoch_loss['loss'])
     print(f"Epoch {epoch} | BC-Loss={avg_bc_loss} | Moco-Loss={avg_moco_loss} | Loss={avg_loss}")
-    metric_loss.append(avg_loss)
+    model_metrics.add_loss(avg_loss)
+    model_metrics.add_epoch_metric(epoch, {
+        'bc_loss': avg_bc_loss,
+        'moco_loss': avg_moco_loss
+    })
+    if epoch != 0 and epoch % args.eval_epoch == 0:
+        eval_result = evaluateInEnv()
+        model_metrics.add_eval(epoch, eval_result) 
+
+eval_result = evaluateInEnv()
+model_metrics.add_eval(-1, eval_result) 
 
 torch.save({
     'encoder_dict': encoder_q.state_dict(),
     'mlp_dict': mlp.state_dict()
 }, MODEL_PATH)
 
+with open(MODEL_METRICS_PATH, 'wb') as fp:
+    pickle.dump(model_metrics.getDict(), fp)
 
 # plt.plot(range(1, args.nb_epochs + 1), metric_loss, '-bo')
 # plt.title('Average Loss vs Epoch')

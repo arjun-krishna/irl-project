@@ -8,7 +8,7 @@ class ModelMetrics:
 
     def __init__(self, name, metrics_path=None) -> None:
         self.name = name
-        if metrics_path:
+        if metrics_path is not None:
             with open(metrics_path, 'rb') as f:
                 d = pickle.load(f)
                 self.setDict(d)
@@ -20,7 +20,7 @@ class ModelMetrics:
         self.evals[epoch] = metrics
 
     def add_epoch_metric(self, epoch, metrics):
-        self.epoch_metric[epoch] = metrics
+        self.epoch_metrics[epoch] = metrics
 
     def getDict(self):
         return {
@@ -32,6 +32,8 @@ class ModelMetrics:
     
     def setDict(self, metric_dict):
         self.x_labels = list(metric_dict['evals'].keys())
+        if 'name' in metric_dict:
+            self.name = metric_dict['name']
         if 'loss' in metric_dict:
             self.loss = metric_dict['loss']
         if 'evals' in metric_dict:
