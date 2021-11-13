@@ -1,3 +1,5 @@
+import matplotlib.pyplot as plt
+
 class ModelMetrics:
     loss = []
     evals = {}
@@ -29,3 +31,7 @@ class ModelMetrics:
             self.evals = demo_dict['evals']
         if 'epoch_metrics' in demo_dict:
             self.epoch_metrics = demo_dict['epoch_metrics']
+    
+    def plotLoss(self, save_path='./models/loss.png'):
+        plt.plot(self.loss)
+        plt.savefig(save_path)
