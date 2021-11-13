@@ -3,5 +3,5 @@ __pycache__/
 *.pyc
 demos/
 dataset/
-models/
+/models/
 results/
