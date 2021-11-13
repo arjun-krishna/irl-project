@@ -39,9 +39,6 @@ MLP(
 
 Activation Function: ReLU
 
-# Behavior Cloning
-
-
 ## Training decisions
 
 Label distribution
@@ -54,7 +51,15 @@ Label distribution
 Defined a weighted cross-entropy loss as follows, becausing label 2 is quite frequent
 - [1., 1., 0.1, 0.01, 0.01, 0.01, 0.01, 0.01]
 
+# Behavior Cloning
+
+- D50 (nb_epochs - 30, eval_epoch - 5, seed - 101)
+- D100 (nb_epochs - 40, eval_epoch - 5, seed - 102)
+- D150 (nb_epochs - 40, eval_epoch - 5, seed - 101)
+
 ## Results
 
 # Moco-v1 BC
+
+- D50 (nb_epochs - 70, eval_epoch - 10, seed - 102)
 
