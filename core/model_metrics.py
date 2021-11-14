@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import pickle
+import numpy as np
 
 class ModelMetrics:
     loss = []
@@ -40,6 +41,7 @@ class ModelMetrics:
             self.evals = metric_dict['evals']
             self.success_rate = [self.evals[i]['success_rate'] for i in self.evals.keys()]
             self.num_steps = [self.evals[i]['metric_steps'] for i in self.evals.keys()]
+            self.evaluated_epochs = list(self.evals.keys())
         if 'epoch_metrics' in metric_dict:
             self.epoch_metrics = metric_dict['epoch_metrics']
 
@@ -56,7 +58,7 @@ class ModelMetrics:
                 plt.ylabel('Loss')
             elif metric=='num_steps':
                 bp = plt.boxplot(self.num_steps, patch_artist=True, medianprops=dict(color="black",linewidth=1.5))
-                plt.xticks([1,2,3,4,5,6], [5,10,15,20,25,30])
+                plt.xticks(list(np.arange(len(self.evaluated_epochs))+1), self.evaluated_epochs)
                 plt.xlabel('Number of epochs')
                 plt.ylabel('# Steps to  reach target')
 
