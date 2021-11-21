@@ -38,3 +38,21 @@ torch.manual_seed(args.seed)
 np.random.seed(args.seed)
 
 # TODO: Continue from below...
+
+def triplet_loss(margin, d_positive, d_negative):
+    loss = torch.clamp(margin + d_positive - d_negative, min=0.0).mean()
+    return loss
+
+def distance(x1, x2):
+    diff = torch.abs(x1 - x2)
+    return torch.pow(diff, 2).sum(dim=1)
+
+
+train_dataset = datasets.ImageFolder(args.data_path)
+
+train_loader = DataLoader(
+        train_dataset,
+        args.batch_size,
+        shuffle=True,
+        pin_memory=True,
+        drop_last=True)

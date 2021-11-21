@@ -45,6 +45,7 @@ def create_image_dataset(env_name: str, view_mode: str, dataset_root: str = 'dat
     counter = 0
     all_demos = [demo_file for demo_file in glob.glob(demos_dir_path)]
     np.random.seed(seed)
+    print(demos_dir_path)
     selected_demos = np.random.choice(all_demos, size=num_demos, replace=False)
     dataset_dir = os.path.join(dataset_root, env_name, view_mode, 'D'+str(num_demos))
     for demo_file in selected_demos:
