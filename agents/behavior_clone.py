@@ -133,10 +133,9 @@ for epoch in range(args.nb_epochs):
     if (epoch+1) % args.eval_epoch == 0:
         eval_result = evaluateInEnv()
         model_metrics.add_eval(epoch, eval_result) 
-
-if args.nb_epochs%args.eval_epoch!=0:        
-    eval_result = evaluateInEnv()
-    model_metrics.add_eval(epoch, eval_result) 
+      
+eval_result = evaluateInEnv()
+model_metrics.add_eval(-1, eval_result) 
 
 torch.save({
     'encoder_dict': encoder.state_dict(),
