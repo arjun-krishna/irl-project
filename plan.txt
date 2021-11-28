@@ -1,0 +1,63 @@
+Representations: 
+1) TCN
+2) SimSiam
+3) Context Prediction
+4) Prototypical Contrastive Nets
+5) Equivariant Networks
+6) MoCo
+
+Experiments: 
+
+A) Environments:
+  1) One Room
+  2) Y-Maze
+  3) Four Rooms
+  
+B) Views:
+  1) Agent View
+  2) World View
+
+C) Metrics:
+   1) Evaluate every 10 (or 5) epochs for: 
+      a) success rate
+      b) #steps to goal
+   2) Loss v/s #epochs
+   
+ TODO:
+ 1) Collect "Good" Demonstrations (300 x 3 x 2):
+  Note: 
+  1) Explore the environment a bit before starting to collect the dataset
+  2) Document every decision choice (eg: Always go straight towards the block until you absolutely need to turn) 
+   
+  
+    i) One Room:
+        Agent View: Arjun
+        World View: Arjun
+    ii) Y-Maze
+        Agent View: Sanjeev
+        World View: Sanjeev
+    iii) Four Rooms:
+        Agent View: Soo
+        World View: Soo
+        
+   2) Implement Models:
+      1) MoCo - History (Supply action) (Arjun)
+      2) Equivariant Networks (Arjun)
+      3) TCN (Soo)
+      4) SimSiam (Soo)
+      5) Context Prediction (Sanjeev)
+      6) Prototypical (Sanjeev)
+      
+      
+    Timeline:
+    1) 26th Nov (23:59) - All demonstrations data ready
+    2) 5th December (23:59) - All experiments results available (3 envs x 2 views x 6 representations)
+    3) 6th Dec (23:59) -  Presentation is ready
+    
+     
+      
+      
+      
+      
+  Future Work:
+  1) More complicated environments such as "Maze"
