@@ -35,3 +35,38 @@ class MLP(nn.Module):
         x = F.relu(self.fc2(x))
         x = F.relu(self.fc3(x))
         return x
+
+##############################################
+#
+#   Classes related to SimSiam
+#
+##############################################
+
+class SimSiam(nn.Module):
+    def __init__(self, encoder=None, predictor=None, dim=128, pred_dim=64):
+        super(SimSiam, self).__init__()
+        self.dim=dim
+        if encoder is None:
+            self.encoder = Encoder(dim)
+        else:
+            self.encoder = encoder
+        if predictor is None:
+            # self.predictor = MLP(dim)
+            self.predictor = nn.Sequential(
+                nn.Linear(dim, pred_dim, bias=False),
+                nn.BatchNorm1d(pred_dim),
+                nn.ReLU(inplace=True), # hidden layer
+                nn.Linear(pred_dim, dim)
+            )
+        else:
+            self.predictor = predictor
+        
+    def forward(self, x1, x2):
+        z1 = self.encoder(x1) # NxC
+        z2 = self.encoder(x2) # NxC
+
+        p1 = self.predictor(z1) # NxC
+        p2 = self.predictor(z2) # NxC
+
+        return p1, p2, z1.detach(), z2.detach()
+        
