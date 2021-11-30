@@ -76,7 +76,15 @@ for epoch in range(args.nb_epochs):
         optimizer.step()
     avg_loss = np.mean(epoch_loss)
     print('[%d] loss: %.3f' % (epoch, avg_loss))
-    metric_loss.append(avg_loss)
+       
+    model_metrics.add_loss(avg_loss)
+
+    if (epoch+1) % args.eval_epoch == 0:
+        eval_result = evaluateInEnv()
+        model_metrics.add_eval(epoch, eval_result) 
+      
+eval_result = evaluateInEnv()
+model_metrics.add_eval(-1, eval_result) 
 
 torch.save({
     'encoder_dict': encoder.state_dict(),
