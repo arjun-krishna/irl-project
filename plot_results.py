@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 plt.style.use('ggplot')
 
 models = ['D50_bc', 'D50_moco_bc', 'D100_bc', 'D100_moco_bc', 'D150_bc', 'D150_moco_bc', 'D200_bc', 'D200_moco_bc', 'D250_bc', 'D250_moco_bc']
+
 success_rate = []
 metric_steps = []
 
