@@ -9,3 +9,11 @@ experiments/
 playground.ipynb
 representations/
 .ipynb_checkpoints/playground-checkpoint.ipynb
+.vscode
+__pycache__/
+*.pyc
+demos/
+dataset/
+models/
+results/
+.idea/

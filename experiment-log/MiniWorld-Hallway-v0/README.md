@@ -41,9 +41,6 @@ Activation Function: ReLU
 
 # Behavior Cloning
 
-- D50 (nb_epochs - 40, eval_epoch - 10, seed - 101)
-- D100 (nb_epochs - 40, eval_epoch - 10, seed - 102)
-- D150 (nb_epochs - 40, eval_epoch - 10, seed - 101)
 
 ## Training decisions
 
@@ -61,6 +58,3 @@ Defined a weighted cross-entropy loss as follows, becausing label 2 is quite fre
 
 # Moco-v1 BC
 
-- D50 (nb_epochs - 70, eval_epoch - 10, seed - 102)
-- D100 (nb_epochs - 100, eval_epoch - 10, seed - 102)
-- D150 (nb_epochs - 100, eval_epoch - 10, seed - 102)
