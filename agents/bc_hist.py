@@ -27,13 +27,13 @@ warnings.filterwarnings("ignore")
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--env-name', default='MiniWorld-Hallway-v0', type=str, help='env name to evaluate on')
-parser.add_argument('--top_view', action='store_true', help='show the top view instead of the agent view')
+parser.add_argument('--top-view', action='store_true', help='show the top view instead of the agent view')
 parser.add_argument('--domain-rand', action='store_true', help='enable domain randomization')
 parser.add_argument('--data-path', default='', type=str, help='folder of demos')
 parser.add_argument('--nb-demos', default=50, type=int, help='number of demos to consider for training')
-parser.add_argument('--batch_size', default=64, type=int, help='training batch size')
-parser.add_argument('--nb_epochs', default=20, type=int, help='number of epochs')
-parser.add_argument('--eval_epoch', default=10, type=int, help='run evaluate after specified epochs')
+parser.add_argument('--batch-size', default=64, type=int, help='training batch size')
+parser.add_argument('--nb-epochs', default=20, type=int, help='number of epochs')
+parser.add_argument('--eval-epoch', default=10, type=int, help='run evaluate after specified epochs')
 parser.add_argument('--lr', default=5e-3, type=float, help='learning rate')
 parser.add_argument('--seed', default=101, type=int, help='random seed')
 args = parser.parse_args()
@@ -48,6 +48,34 @@ random.seed(args.seed)
 torch.manual_seed(args.seed)
 np.random.seed(args.seed)
 
+### GPU data transfer utils
+def get_default_device():
+    if torch.cuda.is_available():
+        return torch.device('cuda')
+    else:
+        return torch.device('cpu')
+
+def to_device(data, device):
+    if isinstance(data, (list, tuple)):
+        return [to_device(x, device) for x in data]
+    if isinstance(data, dict):
+        return dict((key, to_device(data[key], device)) for key in data)
+    return data.to(device, non_blocking=True)
+
+class DeviceDataLoader:
+    """Transfer data to the device and yield the transfered data"""
+    def __init__(self, dl, device):
+        self.dl = dl
+        self.device = device
+    
+    def __iter__(self):
+        for b in self.dl:
+            yield to_device(b, self.device)
+    
+    def __len__(self):
+        return len(self.dl)
+## utils end
+
 normalizer = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                 std=[0.229, 0.224, 0.225])
 
@@ -57,8 +85,11 @@ data_transform = transforms.Compose([
     normalizer
 ])
 
+device = get_default_device()
+print(f'Using device = {device}')
+
 train_dataset = DemoDataPreviousAction(args.data_path, args.nb_demos, data_transform)
-train_loader = DataLoader(train_dataset, args.batch_size, shuffle=True)
+train_loader = DeviceDataLoader(DataLoader(train_dataset, args.batch_size, shuffle=True), device)
 
 class ModelWithHist(nn.Module):
     def __init__(self):
@@ -71,7 +102,7 @@ class ModelWithHist(nn.Module):
         X = torch.concat([e, sample['prev_a']], dim=1)
         return self.mlp(X)
 
-model = ModelWithHist()
+model = to_device(ModelWithHist(), device)
 
 def evaluateInEnv():
     env = gym.make(args.env_name)
@@ -95,8 +126,8 @@ def evaluateInEnv():
                 'obs': data_transform(Image.fromarray(get_obs()))[np.newaxis, :, :, :],
                 'prev_a': F.one_hot(torch.tensor([prev_a]), num_classes=9)
             }
-            output = model(sample)
-            output = output.clone().detach()
+            output = model(to_device(sample, device))
+            output = output.clone().detach().cpu()
             action = output[0].argmax().item()
 
             _, reward, done, _ = env.step(action)
@@ -112,7 +143,7 @@ def evaluateInEnv():
     }
     return d
 
-weights = [1., 1., 0.7, 0.01, 0.01, 0.01, 0.01, 0.01] # moving forward is quite likely
+weights = [1., 1., 0.4, 0.01, 0.01, 0.01, 0.01, 0.01] # moving forward is quite likely
 class_weights = torch.FloatTensor(weights)
 cross_entropy = nn.CrossEntropyLoss()
 params = model.parameters()
@@ -121,6 +152,8 @@ scheduler = optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.9)
 
 model_metrics = ModelMetrics(MODEL_NAME)
 
+if device.type == 'cuda':
+    torch.cuda.empty_cache()
 model.train()
 for epoch in range(args.nb_epochs):
     epoch_loss = []
@@ -128,8 +161,8 @@ for epoch in range(args.nb_epochs):
         optimizer.zero_grad()
         outputs = model(sample)
         loss = cross_entropy(outputs, sample['a'].squeeze())
-        epoch_loss.append(loss.item())
         loss.backward()
+        epoch_loss.append(loss.detach().cpu().item())
         optimizer.step()
     scheduler.step()
     avg_loss = np.mean(epoch_loss)

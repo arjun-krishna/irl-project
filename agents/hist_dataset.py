@@ -38,11 +38,12 @@ class DemoDataPreviousAction(Dataset):
     def __getitem__(self, idx):
         if torch.is_tensor(idx):
             idx = idx.tolist()
-        if type(idx) is slice:
-            idx = list(range(len(self.obs)))[idx]
-        elif type(idx) is not list:
-            idx = [idx]
-        obs = torch.stack([self.transform(self.obs[i]) for i in idx])
+        if isinstance(idx, list):
+            obs = torch.stack([self.transform(self.obs[i]) for i in idx])
+        elif isinstance(idx, slice):
+            obs = torch.stack([self.transform(self.obs[i]) for i in list(range(len(self.obs)))[idx]])
+        else:
+            obs = self.transform(self.obs[idx])
         prev_a = torch.from_numpy(self.prev_a[idx])
         a = torch.from_numpy(self.a[idx])
 
