@@ -1,4 +1,3 @@
-from core.dataset import MiniWorldDataset
 from core.demo import Demonstration
 from PIL import Image
 import numpy as np

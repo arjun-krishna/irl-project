@@ -3,12 +3,17 @@ plt.style.use('ggplot')
 import pickle
 import numpy as np
 
+
 class ModelMetrics:
     loss = []
     evals = {}
     epoch_metrics = {}
 
     def __init__(self, name, metrics_path=None) -> None:
+        '''
+            name: Model Name
+            metrics_path: Path to save metrics dict
+        '''
         self.name = name
         if metrics_path is not None:
             with open(metrics_path, 'rb') as f:
