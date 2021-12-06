@@ -46,10 +46,10 @@ class MLP(nn.Module):
         super().__init__()
         # In: 120
         self.fc = nn.Sequential(
-            nn.Linear(dim, 64) # Out: 64
+            nn.Linear(dim, 64), # Out: 64
             nn.ReLU(inplace=True),
             nn.Dropout(p=p),
-            nn.Linear(64, 32)  # Out: 32
+            nn.Linear(64, 32),  # Out: 32
             nn.ReLU(inplace=True),
             nn.Dropout(p=p),
             nn.Linear(32, 8)
