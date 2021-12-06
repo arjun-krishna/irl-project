@@ -11,3 +11,4 @@ git+git://github.com/maximecb/gym-miniworld@b98ba02#egg=gym-miniworld
 torch==1.10.0+cu113
 torchvision==0.11.1+cu113
 torchaudio===0.10.0+cu113
+git+https://github.com/QUVA-Lab/e2cnn

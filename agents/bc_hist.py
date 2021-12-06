@@ -24,7 +24,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--env-name', default='MiniWorld-Hallway-v0', type=str, help='env name to evaluate on')
+parser.add_argument('--env-name', default='MiniWorld-OneRoom-v0', type=str, help='env name to evaluate on')
 parser.add_argument('--top-view', action='store_true', help='show the top view instead of the agent view')
 parser.add_argument('--domain-rand', action='store_true', help='enable domain randomization')
 parser.add_argument('--data-path', default='', type=str, help='folder of demos')

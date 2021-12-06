@@ -1,29 +1,88 @@
-"""
-Action considered BC
-"""
+import torch
+from e2cnn import gspaces, nn
 import argparse
 import pickle
-import torch
 import random
 import gym
 import gym_miniworld
 import os
 import numpy as np
-from torch import nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torchvision import transforms
-from core.transforms import GaussianBlur, TwoCropsTransform
-from torchvision.transforms.transforms import RandomApply
 import torch.optim as optim
 from PIL import Image
-from agents.net import MLP, Encoder
 from agents.hist_dataset import DemoDataPreviousAction
 from core.model_metrics import ModelMetrics
 
 # ignore warnings
 import warnings
 warnings.filterwarnings("ignore")
+
+class EqNet(torch.nn.Module):
+
+    def __init__(self):
+        super(EqNet, self).__init__()
+
+        self.r2_act = gspaces.Rot2dOnR2(8)
+        
+        in_type = nn.FieldType(self.r2_act, 3*[self.r2_act.trivial_repr])
+        self.input_type = in_type
+        out_type = nn.FieldType(self.r2_act, 4*[self.r2_act.regular_repr])
+
+        self.blk1 = nn.SequentialModule(
+            nn.R2Conv(in_type, out_type, kernel_size=7),
+            nn.InnerBatchNorm(out_type),
+            nn.ReLU(out_type, inplace=True),
+            nn.PointwiseAvgPoolAntialiased(out_type, sigma=0.66, stride=2)
+        )
+
+        in_type = self.blk1.out_type
+        out_type = nn.FieldType(self.r2_act, 8*[self.r2_act.regular_repr])
+        self.blk2 = nn.SequentialModule(
+            nn.R2Conv(in_type, out_type, kernel_size=7),
+            nn.InnerBatchNorm(out_type),
+            nn.ReLU(out_type, inplace=True)
+        )
+
+        in_type = self.blk2.out_type
+        out_type = nn.FieldType(self.r2_act, 16*[self.r2_act.regular_repr])
+        self.blk3 = nn.SequentialModule(
+            nn.R2Conv(in_type, out_type, kernel_size=7),
+            nn.InnerBatchNorm(out_type),
+            nn.ReLU(out_type, inplace=True)
+        )
+
+        in_type = self.blk3.out_type
+        out_type = nn.FieldType(self.r2_act, 8*[self.r2_act.regular_repr])
+        self.blk4 = nn.SequentialModule(
+            nn.R2Conv(in_type, out_type, kernel_size=3, padding=1),
+            nn.InnerBatchNorm(out_type),
+            nn.ReLU(out_type, inplace=True)
+        )
+
+        self.gpool = nn.GroupPooling(out_type)
+
+        self.ll = torch.nn.Linear(800, 128)
+
+        self.fc = torch.nn.Sequential(
+            torch.nn.Linear(137, 64),
+            torch.nn.ReLU(inplace=True),
+            torch.nn.Linear(64, 32),
+            torch.nn.ReLU(inplace=True),
+            torch.nn.Linear(32, 8)
+        )
+
+    def forward(self, sample):
+        x = nn.GeometricTensor(sample['obs'], self.input_type)
+        x = self.blk1(x)
+        x = self.blk2(x)
+        x = self.blk3(x)
+        x = self.blk4(x)
+        x = self.gpool(x).tensor
+        x = self.ll(x.reshape(x.shape[0], -1))
+        x = self.fc(torch.concat([x, sample['prev_a']], dim=1))
+        return x
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--env-name', default='MiniWorld-OneRoom-v0', type=str, help='env name to evaluate on')
@@ -40,7 +99,7 @@ args = parser.parse_args()
 
 if not os.path.exists('models/'):
     os.makedirs('models/')
-MODEL_NAME = 'D' + str(args.nb_demos) + '_moco_bc_hist'
+MODEL_NAME = 'D' + str(args.nb_demos) + '_eqnet'
 MODEL_PATH = 'models/' + MODEL_NAME + '.pt'
 MODEL_METRICS_PATH = 'models/' + MODEL_NAME + '.pickle'
 
@@ -79,19 +138,11 @@ class DeviceDataLoader:
 normalizer = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                 std=[0.229, 0.224, 0.225])
 
-augmentation = [
-    transforms.RandomResizedCrop(50, scale=(0.2, 1.)),
-    RandomApply([
-        transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)
-    ], p=0.8),
-    transforms.RandomGrayscale(p=0.2),
-    transforms.RandomApply([GaussianBlur([.1, .2])], p=0.5), 
-    # do not apply horizontal flip (action could change based on that - not label preserving)
+data_transform = transforms.Compose([
     transforms.ToTensor(),
+    transforms.Resize((50, 50)),
     normalizer
-]
-
-data_transform = TwoCropsTransform(transforms.Compose(augmentation))
+])
 
 device = get_default_device()
 print(f'Using device = {device}')
@@ -99,24 +150,7 @@ print(f'Using device = {device}')
 train_dataset = DemoDataPreviousAction(args.data_path, args.nb_demos, data_transform)
 train_loader = DeviceDataLoader(DataLoader(train_dataset, args.batch_size, shuffle=True), device)
 
-# moco params
-Q = 640
-m = 0.999
-T = 0.04
-# ---
-
-encoder_q = to_device(Encoder(dim=128), device)
-encoder_k = to_device(Encoder(dim=128), device)
-mlp = to_device(MLP(dim=137), device)
-
-for param_q, param_k in zip(encoder_q.parameters(), encoder_k.parameters()):
-    param_k.data.copy_(param_q.data)  # initialize
-    param_k.requires_grad = False  # not update by gradient
-
-def model_forward(sample):
-    q = encoder_q(sample['obs'][0])
-    x = torch.concat([q, sample['prev_a']], dim=1)
-    return mlp(x), q
+model = to_device(EqNet(), device)
 
 def evaluateInEnv():
     env = gym.make(args.env_name)
@@ -131,22 +165,16 @@ def evaluateInEnv():
     metric_steps = []
     metric_success = []
 
-    trsf = transforms.Compose([
-        transforms.RandomResizedCrop(50, scale=(0.2, 1.)),
-        transforms.ToTensor(),
-        normalizer
-    ])
-
     for i in range(NUM_EPISODES):
         done = False
         steps = 0
         prev_a = 8
         while not done:
             sample = {
-                'obs': [torch.unsqueeze(trsf(Image.fromarray(get_obs())), 0)],
+                'obs': data_transform(Image.fromarray(get_obs()))[np.newaxis, :, :, :],
                 'prev_a': F.one_hot(torch.tensor([prev_a]), num_classes=9)
             }
-            output, _ = model_forward(to_device(sample, device))
+            output = model(to_device(sample, device))
             output = output.clone().detach().cpu()
             action = output[0].argmax().item()
 
@@ -163,19 +191,10 @@ def evaluateInEnv():
     }
     return d
 
-def moco_loss(q, k, queue):
-    N = q.shape[0]
-    C = q.shape[1]
-
-    pos = torch.exp(torch.div(torch.bmm(q.view(N, 1, C), k.view(N, C, 1)).view(N, 1), T))
-    neg = torch.sum(torch.exp(torch.div(torch.mm(q.view(N, C), torch.t(queue)), T)), dim=1)
-    denom = neg + pos
-    return torch.mean(-torch.log(torch.div(pos, denom)))
-
-weights = [1., 1., 0.4, 0.01, 0.01, 0.01, 0.01, 0.01] # moving forward is quite likely
+weights = [1., 1., 0.6, 0.01, 0.01, 0.01, 0.01, 0.01] # moving forward is quite likely
 class_weights = torch.FloatTensor(weights)
-cross_entropy = nn.CrossEntropyLoss()
-params = list(encoder_q.parameters()) + list(mlp.parameters())
+cross_entropy = torch.nn.CrossEntropyLoss()
+params = model.parameters()
 optimizer = optim.Adam(params, lr=args.lr)
 scheduler = optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.9)
 
@@ -183,89 +202,36 @@ model_metrics = ModelMetrics(MODEL_NAME)
 
 if device.type == 'cuda':
     torch.cuda.empty_cache()
-
-queue = None
-# initialize queue
-flag = False
-while True:
-    for _, sample in enumerate(train_loader):
-        xk = sample['obs'][1]
-        k = encoder_k(xk).detach()
-
-        k = torch.div(k, torch.norm(k, dim=1).reshape(-1, 1))
-
-        if queue is None:
-            queue = k
-        else:
-            if queue.shape[0] < Q:
-                queue = torch.cat((queue, k), 0)
-            else:
-                flag = True
-        if flag:
-            break
-    if flag:
-        break
-#end queue init
-
-encoder_q.train(); mlp.train()
+model.train()
 for epoch in range(args.nb_epochs):
-    epoch_loss = {
-        'bc': [],
-        'moco': [],
-        'loss': []
-    }
+    epoch_loss = []
     for i, sample in enumerate(train_loader):
         optimizer.zero_grad()
-        a_pred, q = model_forward(sample)
-        k = encoder_k(sample['obs'][1]).detach()
-        loss_bc = cross_entropy(a_pred, sample['a'].squeeze())
-
-        q = torch.div(q, torch.norm(q, dim=1).reshape(-1, 1))
-        k = torch.div(k, torch.norm(k, dim=1).reshape(-1, 1))
-        loss_moco = moco_loss(q, k, queue)
-
-        loss = loss_bc + loss_moco
+        outputs = model(sample)
+        loss = cross_entropy(outputs, sample['a'].squeeze())
         loss.backward()
+        epoch_loss.append(loss.detach().cpu().item())
         optimizer.step()
-
-        epoch_loss['moco'].append(loss_moco.cpu().item())
-        epoch_loss['bc'].append(loss_bc.cpu().item())
-        epoch_loss['loss'].append(loss.cpu().item())
-
-        queue = torch.cat((queue, k), 0)
-        if queue.shape[0] > Q:
-            queue = queue[args.batch_size:,:]
-
-        # momentum update key encoder
-        for param_q, param_k in zip(encoder_q.parameters(), encoder_k.parameters()):
-            param_k.data = param_k.data * m + param_q.data * (1. - m)
-
     scheduler.step()
-    avg_bc_loss = np.mean(epoch_loss['bc'])
-    avg_moco_loss = np.mean(epoch_loss['moco'])
-    avg_loss = np.mean(epoch_loss['loss'])
-    print(f"Epoch {epoch} | BC-Loss={avg_bc_loss} | Moco-Loss={avg_moco_loss} | Loss={avg_loss}")
+    avg_loss = np.mean(epoch_loss)
+    print('[%d] loss: %.3f' % (epoch, avg_loss))
     
     model_metrics.add_loss(avg_loss)
-    model_metrics.add_epoch_metric(epoch, {
-        'bc_loss': avg_bc_loss,
-        'moco_loss': avg_moco_loss
-    })
-    
+
     if (epoch+1) % args.eval_epoch == 0:
-        encoder_q.eval(); mlp.eval()
+        model.eval()
         eval_result = evaluateInEnv()
         print('EVAL (success_rate) = ', eval_result['success_rate'])
         model_metrics.add_eval(epoch, eval_result) 
-        encoder_q.train(); mlp.train()
+        model.train()
 
-encoder_q.eval(); mlp.eval()
+
+model.eval()      
 eval_result = evaluateInEnv()
 model_metrics.add_eval(-1, eval_result) 
 
 torch.save({
-    'encoder_dict': encoder_q.state_dict(),
-    'mlp_dict': mlp.state_dict()
+    'model_dict': model.state_dict()
 }, MODEL_PATH)
 
 with open(MODEL_METRICS_PATH, 'wb') as fp:
