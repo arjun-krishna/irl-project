@@ -10,7 +10,7 @@ class ContextPredictionModel(nn.Module):
         super().__init__()
         self.encoder = Encoder()
         self.mlp_cp = MLP(dim=3200)
-        self.mlp_bc = MLP(dim=150544)
+        self.mlp_bc = MLP(dim=150553)
 
     def forward(self, x):
         patch1, patch2 = x

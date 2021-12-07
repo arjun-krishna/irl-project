@@ -10,6 +10,8 @@ import pickle
 import os
 from torchvision import transforms as T
 from PIL import Image
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 
 class MiniWorldDataset(Dataset):
 
@@ -75,12 +77,13 @@ class ContextPredictionDataset(DemoDataPreviousAction):
 
     def __getitem__(self, idx):
         img = self.obs[idx]
+        prev_a = torch.from_numpy(self.prev_a[idx])
         a = torch.from_numpy(self.a[idx])
         img = Image.fromarray(img)
         img = self.transform(img)
         # print('Image shape: ', img.shape)
         # print('Image type:     ', type(img))
-        label = torch.randint(low=0, high=8, size=[1])
+        label_cp = torch.randint(low=0, high=8, size=[1])
         # print('patch size:', self.patch_size)
         jitter1 = np.random.randint(low=1, high=7*self.patch_size//48)
         if np.random.rand() < 0.5:
@@ -93,7 +96,7 @@ class ContextPredictionDataset(DemoDataPreviousAction):
         # print(self.center, type(self.center))
         # print(self.label2vec[:,label], type(self.label2vec[:,label]))
         # print(self.center + self.label2vec[:,label] + jitter)
-        random_loc = np.array(self.center + self.label2vec[:,label] + jitter, dtype=np.uint8)
+        random_loc = np.array(self.center + self.label2vec[:,label_cp] + jitter, dtype=np.uint8)
         # print('Random Loc: ', random_loc)
         # print('Center: ', self.center)
         center_patch = self.get_patch(img, self.center)
@@ -104,8 +107,12 @@ class ContextPredictionDataset(DemoDataPreviousAction):
             'center': center_patch,
             'random': random_patch,
             'obs': img,
-            'prev_a': a.long()
+            'prev_a': prev_a.long(),
+            'center_loc':self.center,
+            'random_loc':random_loc,
+            'patch_size': self.patch_size
         }
+        label = {'cp':label_cp,'bc': a.long()}
         # print('X Shape: ', x.shape)
         # print('Rs:', random_patch.shape)
         # print('Cs:', center_patch.shape)
@@ -122,9 +129,18 @@ class ContextPredictionDataset(DemoDataPreviousAction):
         high = np.array(center + patch_shape//2 + 1, dtype=np.uint8)
         # print('low', low)
         # print('high', high)
-        # print('Low, High', low, high)
-        patch = img[:,low[0]:high[0], low[1]:high[1]]
+        # print('Low: ', low, 'High: ',high)
+        # print('Image Shape', img.shape)
+        patch = img[:,low[1]:high[1], low[0]:high[0]]
         patch = patch.float()
+        # fig, (a0,a1) = plt.subplots(1,2)
+        # width = high[0] - low[0]
+        # height = high[1] - low[1]
+        # rect = patches.Rectangle((low[0], low[1]), width, height, linewidth=1, edgecolor='b', facecolor='none')
+        # a0.imshow(img.permute(1,2,0))
+        # a0.add_patch(rect)
+        # a1.imshow(patch.permute(1,2,0))
+        # plt.show()
         # print('Patch Shape:', patch.shape)
         # print('Patch type:', type(patch))
         return patch
