@@ -1,5 +1,6 @@
 from numpy.core.defchararray import center
 from numpy.core.numerictypes import obj2sctype
+from numpy.lib.npyio import save
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -8,14 +9,16 @@ from agents.models import ContextPredictionModel
 from core.dataset import ContextPredictionDataset
 import numpy as np
 from core.model_metrics import ModelMetrics
+import os
+from time import time
 
 from agents.net import Encoder, MLP
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
-def train_model(model, train_loader, model_name: str,num_epochs: int = 20, lr=1e-4, save_path: str = './metrics', device=torch.device('cuda')):
+def train_model(model, train_loader, model_name: str,num_epochs: int = 20, lr=1e-4, save_path: str = './metrics/experiment.pickle', device=torch.device('cuda')):
     loss_fn = nn.CrossEntropyLoss()
-    logger = ModelMetrics(model_name)
+    logger = ModelMetrics(model_name, metrics_path=save_path)
     total_iters = 0
     model.train()
     optimizer = optim.Adam(params=model.parameters(), lr=lr)
@@ -76,7 +79,6 @@ def train_model(model, train_loader, model_name: str,num_epochs: int = 20, lr=1e
         avg_epoch_loss /= (i+1)
         print(50*'=')
         print('Epoch {}: , Avg Loss: {}'.format(epoch, avg_epoch_loss))
-    pass
 
 if __name__ == '__main__':
     from argparse import ArgumentParser
@@ -84,7 +86,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--num_epochs',default=20, type=int, help='number of epochs to train the model for')
     parser.add_argument('--lr',default=1e-4, type=float, help='learning rate for the model')
-    parser.add_argument('--n_demos',default='all', type=str, help='number of demonstrations to use for training model. Use "all" (default) for all demos. Append "m" to integer to train with n_demos in multiples of  that integer. eg: "50m" trains the model with 50, 100, 150, 200, ... demos ')
+    parser.add_argument('--num_demos',default='all', type=int, help='number of demonstrations to use for training model. Use "all" (default) for all demos. Append "m" to integer to train with n_demos in multiples of  that integer. eg: "50m" trains the model with 50, 100, 150, 200, ... demos ')
     parser.add_argument('--input_size', type=int, default=96, help='resize all input images to this size')
     parser.add_argument('--batch_size', type=int, default=64, help='resize all input images to this size')
     parser.add_argument('--demo_folder', type=str, default='C:/Users/sanje/Documents/Projects/irl-project/demos/MiniWorld-OneRoom-v0/agent')
@@ -97,8 +99,15 @@ if __name__ == '__main__':
     model = ContextPredictionModel()
     # train_dataset = ContextPredictionDataset(num_demos = args.n_demos)
     input_shape = (args.input_size, args.input_size)
-    train_dataset = ContextPredictionDataset(demo_folder = args.demo_folder, input_shape=input_shape)
+    train_dataset = ContextPredictionDataset(demo_folder = args.demo_folder, input_shape=input_shape, nb_demos=args.num_demos)
     # train_dataset = ContextPredictionDataset()
     print('len:',len(train_dataset))
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
-    best_weights = train_model(model, train_loader, num_epochs=args.num_epochs, model_name=model_name, device = device)
+    experiment_details = {
+        'representation': 'context_prediction',
+        'type': 1,
+        'num_demos': args.num_demos,
+        'lr': args.lr,
+    }
+    save_path = './experiments/exp_' + str(time()) + '.pickle'
+    best_weights = train_model(model, train_loader, num_epochs=args.num_epochs, model_name=model_name, device = device, save_path=save_path)

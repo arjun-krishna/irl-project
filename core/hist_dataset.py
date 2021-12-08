@@ -11,10 +11,9 @@ class DemoDataPreviousAction(Dataset):
     
     def __init__(self, demo_folder:str, nb_demos:int=50, transform=None):
         '''
-            nb_demons (int): Pick only these many demos from data folder
+            nb_demos (int): Pick only these many demos from data folder
         '''
         self.transform = transform
-
         files = [f for f in glob(os.path.join(demo_folder, '*'))]
         files = np.random.choice(files, nb_demos, False)
         

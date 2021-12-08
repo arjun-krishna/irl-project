@@ -55,8 +55,8 @@ class MiniWorldDataset(Dataset):
         return sample
         
 class ContextPredictionDataset(DemoDataPreviousAction):
-    def __init__(self, demo_folder, input_shape='auto_infer'):
-        super().__init__(demo_folder=demo_folder)
+    def __init__(self, demo_folder, nb_demos=50, input_shape='auto_infer'):
+        super().__init__(demo_folder=demo_folder, nb_demos=nb_demos)
         self.input_shape = input_shape
         if self.input_shape == 'auto_infer':
             self.input_shape = self.get_input_shape_from_demo_folder(demo_folder)
