@@ -18,6 +18,4 @@ class ContextPredictionModel(nn.Module):
         features2 = self.encoder(patch2)
         features = torch.cat((features1, features2))
         out = self.mlp(features)
-        return out
-
-    
+        return out 
