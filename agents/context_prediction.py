@@ -15,10 +15,13 @@ from time import time
 from agents.net import Encoder, MLP
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+import pickle
 
 def train_model(model, train_loader, model_name: str,num_epochs: int = 20, lr=1e-4, save_path: str = './metrics/experiment.pickle', device=torch.device('cuda')):
     loss_fn = nn.CrossEntropyLoss()
-    logger = ModelMetrics(model_name, metrics_path=save_path)
+    if not os.path.isdir(os.path.dirname(save_path)):
+        os.makedirs(os.path.dirname(save_path))
+    logger = ModelMetrics(model_name)
     total_iters = 0
     model.train()
     optimizer = optim.Adam(params=model.parameters(), lr=lr)
@@ -79,6 +82,8 @@ def train_model(model, train_loader, model_name: str,num_epochs: int = 20, lr=1e
         avg_epoch_loss /= (i+1)
         print(50*'=')
         print('Epoch {}: , Avg Loss: {}'.format(epoch, avg_epoch_loss))
+        with open(save_path, 'wb') as f:
+            pickle.dump(logger.getDict(), f)
 
 if __name__ == '__main__':
     from argparse import ArgumentParser
