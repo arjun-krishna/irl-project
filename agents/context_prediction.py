@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import pickle
 
-def train_model(model, train_loader, loss_fn, optimizer, experiment_details,num_epochs: int = 20, eval_every=5, save_path: str = './metrics/experiment.pickle', device=torch.device('cuda')):
+def train_model(model, train_loader, loss_fn, optimizer, experiment_details,num_epochs: int = 20, eval_every=5, save_path: str = './metrics/experiment.pickle', device=torch.device('cuda'), print_every=10):
     if not os.path.isdir(os.path.dirname(save_path)):
         os.makedirs(os.path.dirname(save_path))
     logger = Logger(model_name)
@@ -79,7 +79,7 @@ def train_model(model, train_loader, loss_fn, optimizer, experiment_details,num_
             loss.backward()
             optimizer.step()
             total_iters += 1
-            if i%10==0:
+            if i%print_every==0:
                 print('CP Loss = {}, BC Loss = {}, Total Loss: {}'.format(loss_cp, loss_bc, loss))
 
         avg_epoch_loss /= (i+1)
@@ -95,6 +95,7 @@ def train_model(model, train_loader, loss_fn, optimizer, experiment_details,num_
                 logger.log_metric('Steps', epoch, eval_result['metric_steps'])
             d = logger.getDict()
             d['experiment_details'] = experiment_details
+            d['model_state_dict'] = model.state_dict
             torch.save(d, save_path)
 
             # if (epoch+1) % eval_every == 0:
@@ -106,7 +107,6 @@ def train_model(model, train_loader, loss_fn, optimizer, experiment_details,num_
 if __name__ == '__main__':
     from argparse import ArgumentParser
     parser = ArgumentParser()
-
     # Parse Command Line Arguments
     parser.add_argument('--num_epochs',default=20, type=int, help='number of epochs to train the model for')
     parser.add_argument('--lr',default=1e-4, type=float, help='learning rate for the model')
@@ -118,6 +118,7 @@ if __name__ == '__main__':
     parser.add_argument('--weighted_ce_loss', action='store_true', help='Use a weighted cross entropy loss')
     parser.add_argument('--env_name', type=str, default='MiniWorld-Hallway-v0',help='Name of environment: MiniWorld-Hallway-v0 or MiniWorld-YMaze-v0 or MiniWorld-OneRoom-v0 or MiniWorld-FourRooms-v0')
     parser.add_argument('--top_view', action='store_true', help='Switch to top view aka world view')
+    parser.add_argument('--print_every', type=int, help='print loss after every "print_every" iterations')
 
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
@@ -137,7 +138,6 @@ if __name__ == '__main__':
     loss_fn = nn.CrossEntropyLoss(weight=class_weights) if args.weighted_ce_loss else nn.CrossEntropyLoss()
     params = list(model.encoder.parameters()) + list(model.mlp_cp.parameters()) + list(model.mlp_bc.parameters())
     optimizer = optim.Adam(params=params, lr=args.lr)
-
     experiment_details = {
         'model_name': model_name,
         'type': 'first/normal',
@@ -146,7 +146,8 @@ if __name__ == '__main__':
         'lr': args.lr,
         'view': view,
         'env_name':args.env_name,
-        'transform': train_dataset.transform
+        'transform': train_dataset.transform,
+        'optimizer':optimizer.state_dict
     }
     save_path = './experiments/exp_' + str(time()) + '.pickle'
-    best_weights = train_model(model, train_loader, loss_fn, optimizer,experiment_details, num_epochs=args.num_epochs, eval_every=args.eval_every, device = device, save_path=save_path)
+    best_weights = train_model(model, train_loader, loss_fn, optimizer,experiment_details, num_epochs=args.num_epochs, eval_every=args.eval_every, device = device, save_path=save_path, print_every=args.print_every)
