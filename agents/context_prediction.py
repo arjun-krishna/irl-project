@@ -1,6 +1,3 @@
-from numpy.core.defchararray import center
-from numpy.core.numerictypes import obj2sctype
-from numpy.lib.npyio import save
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -29,8 +26,8 @@ def train_model(model, train_loader, loss_fn, optimizer, experiment_details,num_
     for epoch in range(num_epochs):
         avg_epoch_loss = 0
         for i, (input, label) in enumerate(train_loader):
-            center_patch = input['center']
-            random_patch = input['random']
+            center_patch = input['center'].to(device)
+            random_patch = input['random'].to(device)
             # center_loc = input['center_loc'][0].numpy()
             # random_loc = input['random_loc'][0].numpy()
             # p = input['patch_size'][0].item()
@@ -40,10 +37,10 @@ def train_model(model, train_loader, loss_fn, optimizer, experiment_details,num_
 
             # print('Center Loc', center_loc)
             # print('Random Loc', random_loc)
-            observation = input['obs']
-            prev_a = input['prev_a']
-            label_cp = label['cp']
-            label_bc = label['bc']
+            observation = input['obs'].to(device)
+            prev_a = input['prev_a'].to(device)
+            label_cp = label['cp'].to(device)
+            label_bc = label['bc'].to(device)
             # print('Label CP', label_cp[0])
             # f, (a0, a1, a2) = plt.subplots(1, 3, gridspec_kw={'width_ratios': [2, 1, 1]})
             # a0.imshow(observation[0].permute(1,2,0))
@@ -64,37 +61,41 @@ def train_model(model, train_loader, loss_fn, optimizer, experiment_details,num_
             # print(prev_a.shape)
             image_features_with_action = torch.cat((image_features, prev_a), dim=1)
             # print(image_features_with_action.shape)
-            predicted_action = model.mlp_bc(image_features_with_action)
+            # predicted_action = model.mlp_bc(image_features_with_action)
             # print('Prediction: ', prediction.dtype)
             # print('Label: ', label.reshape(-1).dtype)
             # print('Action Prediction: ', predicted_action.dtype)
             # print('Action Label: ', action_gt.reshape(-1).dtype)
             loss_cp = loss_fn(prediction, label_cp.reshape(-1)).to(device)
-            loss_bc = loss_fn(predicted_action, label_bc.reshape(-1)).to(device)
-            loss = loss_cp + loss_bc
+            # loss_bc = loss_fn(predicted_action, label_bc.reshape(-1)).to(device)
+            loss = loss_cp
+            # loss = loss_cp + loss_bc
             logger.add_loss(loss)
             avg_epoch_loss += loss
             loss.backward()
             optimizer.step()
             total_iters += 1
             if i%10==0:
-                print('Loss = {}'.format(loss))
+                print('CP Loss = {}, BC Loss = {}, Total Loss: {}'.format(loss_cp, 0, loss))
 
         avg_epoch_loss /= (i+1)
-        if (epoch+1-1)%num_epochs == 0:
-            eval_result = model.eval_in_env(experiment_details['env_name'], transform=transform, top_view=(experiment_details['view']=='top'))
-            logger.add_eval(epoch, eval_result) 
-            print('Success rate: ', eval_result['success_rate'], '    Steps: ', eval_result['metric_steps'])
 
-        print(50*'=')
         print('Epoch {}: , Avg Loss: {}'.format(epoch, avg_epoch_loss))
-        with open(save_path, 'wb') as f:
+        print(50*'=')
+
+        if eval_every != 0:
+            if (epoch+1) % eval_every == 0:
+                eval_result = model.eval_in_env(experiment_details['env_name'], transform=transform, top_view=(experiment_details['view']=='top'))
+                logger.add_eval(epoch, eval_result) 
+                print('Success rate: ', eval_result['success_rate'], '    Steps: ', eval_result['metric_steps'])
+
+            
             d = logger.getDict()
             d['experiment_details'] = experiment_details
+            torch.save(d, save_path)
 
-            pickle.dump(d, f)
-        if (epoch+1-1) % eval_every == 0:
-            eval_result = model.eval_in_env(experiment_details['env_name'], transform=transform, top_view=(experiment_details['view']=='top'))
+            # if (epoch+1) % eval_every == 0:
+            #     eval_result = model.eval_in_env(experiment_details['env_name'], transform=transform, top_view=(experiment_details['view']=='top'))
 
             logger.add_eval(epoch, eval_result) 
 
