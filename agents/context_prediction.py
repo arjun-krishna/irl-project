@@ -70,6 +70,7 @@ def train_model(model, train_loader, loss_fn, optimizer, experiment_details,num_
             # loss_bc = loss_fn(predicted_action, label_bc.reshape(-1)).to(device)
             loss = loss_cp
             # loss = loss_cp + loss_bc
+            optimizer.zero_grad()
             logger.add_loss(loss)
             avg_epoch_loss += loss
             loss.backward()
