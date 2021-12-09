@@ -89,8 +89,7 @@ def train_model(model, train_loader, loss_fn, optimizer, experiment_details,num_
 
         if eval_every != 0:
             if (epoch+1) % eval_every == 0:
-                eval_result = model.eval_in_env(experiment_details['env_name'], device=device, transform=transform, top_view=(experiment_details['view']=='top'))
-                logger.add_eval(epoch, eval_result) 
+                eval_result = model.eval_in_env(experiment_details['env_name'], device=device, transform=transform, top_view=(experiment_details['view']=='top'), num_episodes=100)
                 print('Success rate: ', eval_result['success_rate'], '    Steps: ', eval_result['metric_steps'])
                 logger.log_metric('Success rate', epoch, eval_result['success_rate'])
                 logger.log_metric('Steps', epoch, eval_result['metric_steps'])
