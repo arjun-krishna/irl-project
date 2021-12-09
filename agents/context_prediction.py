@@ -22,6 +22,7 @@ def train_model(model, train_loader, loss_fn, optimizer, experiment_details,num_
     logger = ModelMetrics(model_name)
     total_iters = 0
     transform = experiment_details['transform']
+    model = model.to(device)
     model.train()
     for epoch in range(num_epochs):
         avg_epoch_loss = 0
