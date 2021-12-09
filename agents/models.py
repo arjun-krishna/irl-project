@@ -43,7 +43,7 @@ class ContextPredictionModel(nn.Module):
             while not done and steps<=500:
                 x = Image.fromarray(get_obs())
                 prev_a = 8
-                v = torch.zeros(9, dtype=torch.float); v[prev_a] = 1.0
+                v = torch.zeros(9, dtype=torch.float).to(device); v[prev_a] = 1.0
                 inp = transform(x).to(device)
                 output = self.encoder(inp[np.newaxis, :, :, :])
                 v = v[np.newaxis, :]
