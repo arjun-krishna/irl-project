@@ -55,8 +55,9 @@ class MiniWorldDataset(Dataset):
         return sample
         
 class ContextPredictionDataset(DemoDataPreviousAction):
-    def __init__(self, demo_folder, nb_demos=50, input_shape='auto_infer'):
+    def __init__(self, demo_folder, nb_demos=50, input_shape='auto_infer', patch_mode='center'):
         super().__init__(demo_folder=demo_folder, nb_demos=nb_demos)
+        self.patch_mode = patch_mode
         self.input_shape = input_shape
         if self.input_shape == 'auto_infer':
             self.input_shape = self.get_input_shape_from_demo_folder(demo_folder)
@@ -66,7 +67,11 @@ class ContextPredictionDataset(DemoDataPreviousAction):
         
         self.center = np.array(self.input_shape)//2
         # print('Input Shape:', self.input_shape)
-        self.patch_size = (min(self.input_shape))//4.5
+        if self.patch_mode == 'center':
+            self.patch_size = (min(self.input_shape))//4.5
+        elif self.patch_mode == 'random':
+            self.patch_size = (min(self.input_shape))//3
+
         # print('Patch Size:', self.patch_size)
         r = 3*self.patch_size/2
         # print('r:', r)
@@ -76,6 +81,12 @@ class ContextPredictionDataset(DemoDataPreviousAction):
         print(type(self.label2vec))
 
     def __getitem__(self, idx):
+        if self.patch_mode == 'center':
+            return self.__getitemcenter__ (idx)
+        elif self.patch_mode == 'random':
+            return self.__getitemrandom__(idx)
+
+    def __getitemcenter__(self, idx):
         img = self.obs[idx]
         prev_a = torch.from_numpy(self.prev_a[idx])
         a = torch.from_numpy(self.a[idx])
@@ -104,12 +115,62 @@ class ContextPredictionDataset(DemoDataPreviousAction):
         # print('Center Patch Shape: ', center_patch.shape)
         # print('Random Patch Shape: ', random_patch.shape)
         x = {
-            'center': center_patch,
-            'random': random_patch,
+            'patch1': center_patch,
+            'patch2': random_patch,
             'obs': img,
             'prev_a': prev_a.long(),
-            'center_loc':self.center,
-            'random_loc':random_loc,
+            # 'center_loc':self.center,
+            # 'random_loc':random_loc,
+            # 'patch_size': self.patch_size
+        }
+        label = {'cp':label_cp,'bc': a.long()}
+        # print('X Shape: ', x.shape)
+        # print('Rs:', random_patch.shape)
+        # print('Cs:', center_patch.shape)
+        return (x, label)
+    
+    def __getitemrandom__(self, idx):
+        img = self.obs[idx]
+        prev_a = torch.from_numpy(self.prev_a[idx])
+        a = torch.from_numpy(self.a[idx])
+        img = Image.fromarray(img)
+        img = self.transform(img)
+        label_cp = torch.randint(low=0, high=8, size=[1])
+        jitter1 = np.random.randint(low=1, high=7*self.patch_size//48)
+        if np.random.rand() < 0.5:
+            jitter1 *= -1
+        jitter2 = jitter1
+        if np.random.rand() < 0.5:
+            jitter2 *= -1
+        jitter = np.array([jitter1, jitter2])
+        low = int(np.ceil((self.patch_size - 1)/2)) + 1
+        high = self.input_shape[0] - self.patch_size//2 - 1
+        label_low = np.ceil(np.maximum(np.array([low,low]),low - self.label2vec[:,label_cp] - jitter))
+        label_high = np.floor(np.minimum(np.array([high,high]),high - self.label2vec[:,label_cp] - jitter))
+        # print('Label Low: ', label_low)
+        # print('Label High: ', label_high)
+        # print('Jitter: ',jitter)
+        # print('Label Vec: ',self.label2vec[:,label_cp])
+        # print('Label: ', label_cp)
+        self.random1_x = np.random.randint(low=label_low[0], high=label_high[0])
+        self.random1_y = np.random.randint(low=label_low[1], high=label_high[1])
+        self.random1_loc = np.array([self.random1_x, self.random1_y])
+        self.random2_loc = np.array(self.random1_loc + self.label2vec[:,label_cp] + jitter, dtype=np.uint8)
+        # print('Random1: ', self.random1_loc)
+        # print('Random2: ',self.random2_loc)
+        random_patch1 = self.get_patch(img, self.random1_loc)
+        random_patch2 = self.get_patch(img, self.random2_loc)
+        # print('Random1 Center: ', self.random1_loc)
+        # print('Random2 Center: ', self.random2_loc)
+        # print('Random Patch 1 Shape: ', random_patch1.shape)
+        # print('Random Patch 2 Shape: ', random_patch2.shape)
+        x = {
+            'patch1': random_patch1,
+            'patch2': random_patch2,
+            'obs': img,
+            'prev_a': prev_a.long(),
+            'patch1_loc':self.random1_loc,
+            'patch2_loc':self.random2_loc,
             'patch_size': self.patch_size
         }
         label = {'cp':label_cp,'bc': a.long()}
@@ -117,6 +178,13 @@ class ContextPredictionDataset(DemoDataPreviousAction):
         # print('Rs:', random_patch.shape)
         # print('Cs:', center_patch.shape)
         return (x, label)
+
+
+
+
+
+
+        pass
 
     def get_input_shape_from_demo_folder(self, demo_folder):
         file_path = os.path.join(demo_folder, os.listdir(demo_folder)[0])

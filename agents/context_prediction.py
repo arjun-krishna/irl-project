@@ -5,7 +5,7 @@ from torch.utils.data.dataloader import DataLoader
 from agents.models import ContextPredictionModel
 from core.dataset import ContextPredictionDataset
 import numpy as np
-from core.model_metrics import ModelMetrics
+from core.model_metrics import Logger
 import os
 from time import time
 import gym
@@ -19,7 +19,7 @@ import pickle
 def train_model(model, train_loader, loss_fn, optimizer, experiment_details,num_epochs: int = 20, eval_every=5, save_path: str = './metrics/experiment.pickle', device=torch.device('cuda')):
     if not os.path.isdir(os.path.dirname(save_path)):
         os.makedirs(os.path.dirname(save_path))
-    logger = ModelMetrics(model_name)
+    logger = Logger(model_name)
     total_iters = 0
     transform = experiment_details['transform']
     model = model.to(device)
@@ -27,17 +27,17 @@ def train_model(model, train_loader, loss_fn, optimizer, experiment_details,num_
     for epoch in range(num_epochs):
         avg_epoch_loss = 0
         for i, (input, label) in enumerate(train_loader):
-            center_patch = input['center'].to(device)
-            random_patch = input['random'].to(device)
-            # center_loc = input['center_loc'][0].numpy()
-            # random_loc = input['random_loc'][0].numpy()
+            patch1 = input['patch1'].to(device)
+            patch2 = input['patch2'].to(device)
+            # patch1_loc = input['patch1_loc'][0].numpy()
+            # patch2_loc = input['patch2_loc'][0].numpy()
             # p = input['patch_size'][0].item()
             # half_patch_size = np.array([p//2, p//2])
-            # rect_center = patches.Rectangle(tuple(center_loc - half_patch_size),p,p, linewidth=1, edgecolor='b', facecolor='none')
-            # rect_random = patches.Rectangle(tuple(random_loc - half_patch_size),p,p, linewidth=1, edgecolor='y', facecolor='none')
+            # rect_patch1 = patches.Rectangle(tuple(patch1_loc - half_patch_size),p,p, linewidth=1, edgecolor='b', facecolor='none')
+            # rect_patch2 = patches.Rectangle(tuple(patch2_loc - half_patch_size),p,p, linewidth=1, edgecolor='y', facecolor='none')
 
-            # print('Center Loc', center_loc)
-            # print('Random Loc', random_loc)
+            # print('Center Loc', patch1_loc)
+            # print('Random Loc', patch2_loc)
             observation = input['obs'].to(device)
             prev_a = input['prev_a'].to(device)
             label_cp = label['cp'].to(device)
@@ -45,17 +45,17 @@ def train_model(model, train_loader, loss_fn, optimizer, experiment_details,num_
             # print('Label CP', label_cp[0])
             # f, (a0, a1, a2) = plt.subplots(1, 3, gridspec_kw={'width_ratios': [2, 1, 1]})
             # a0.imshow(observation[0].permute(1,2,0))
-            # a0.add_patch(rect_center)
-            # a0.add_patch(rect_random)
+            # a0.add_patch(rect_patch1)
+            # a0.add_patch(rect_patch2)
             # plt.title('Label CP: ' + str(label_cp[0].item()) + '  Label BC: ' + str(label_bc[0].item()))
-            # a1.imshow(center_patch[0].permute(1,2,0))
-            # a2.imshow(random_patch[0].permute(1,2,0))
+            # a1.imshow(patch1[0].permute(1,2,0))
+            # a2.imshow(patch2[0].permute(1,2,0))
             # plt.tight_layout()
             # plt.show()
             # break
-            center_patch_features = model.encoder(center_patch)
-            random_patch_features = model.encoder(random_patch)
-            features = torch.cat([center_patch_features, random_patch_features], dim=1)
+            patch1_features = model.encoder(patch1)
+            patch2_features = model.encoder(patch2)
+            features = torch.cat([patch1_features, patch2_features], dim=1)
             prediction = model.mlp_cp(features)
             image_features = model.encoder(observation)
             # print(image_features.shape)
@@ -69,10 +69,12 @@ def train_model(model, train_loader, loss_fn, optimizer, experiment_details,num_
             # print('Action Label: ', action_gt.reshape(-1).dtype)
             loss_cp = loss_fn(prediction, label_cp.reshape(-1)).to(device)
             loss_bc = loss_fn(predicted_action, label_bc.reshape(-1)).to(device)
-            loss = loss_cp
+            # loss = loss_cp
             loss = loss_cp + loss_bc
             optimizer.zero_grad()
-            logger.add_loss(loss)
+            logger.log_metric('loss_bc', total_iters, loss_bc)
+            logger.log_metric('loss_cp', total_iters, loss_cp)
+            logger.log_metric('loss_total', total_iters, loss)
             avg_epoch_loss += loss
             loss.backward()
             optimizer.step()
@@ -90,8 +92,8 @@ def train_model(model, train_loader, loss_fn, optimizer, experiment_details,num_
                 eval_result = model.eval_in_env(experiment_details['env_name'], device=device, transform=transform, top_view=(experiment_details['view']=='top'))
                 logger.add_eval(epoch, eval_result) 
                 print('Success rate: ', eval_result['success_rate'], '    Steps: ', eval_result['metric_steps'])
-
-            
+                logger.log_metric('Success rate', epoch, eval_result['success_rate'])
+                logger.log_metric('Steps', epoch, eval_result['metric_steps'])
             d = logger.getDict()
             d['experiment_details'] = experiment_details
             torch.save(d, save_path)
@@ -128,7 +130,7 @@ if __name__ == '__main__':
     view = 'top' if args.top_view else 'agent'
     data_folder_path = os.path.join(args.data_root, args.env_name, view)
     input_shape = (args.input_size, args.input_size)
-    train_dataset = ContextPredictionDataset(demo_folder = data_folder_path, input_shape=input_shape, nb_demos=args.num_demos)
+    train_dataset = ContextPredictionDataset(demo_folder = data_folder_path, input_shape=input_shape, nb_demos=args.num_demos, patch_mode='random')
     print('len:',len(train_dataset))
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
     weights = [1., 1., 0.1, 0.01, 0.01, 0.01, 0.01, 0.01] # moving forward is quite likely
