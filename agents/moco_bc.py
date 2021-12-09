@@ -163,7 +163,7 @@ for epoch in range(args.nb_epochs):
     avg_loss = np.mean(epoch_loss['loss'])
     print(f"Epoch {epoch} | BC-Loss={avg_bc_loss} | Moco-Loss={avg_moco_loss} | Loss={avg_loss}")
     metric_loss.append(avg_loss)
-
+print('Saving...')
 torch.save({
     'encoder_dict': encoder_q.state_dict(),
     'mlp_dict': mlp.state_dict()

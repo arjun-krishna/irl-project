@@ -78,10 +78,11 @@ for i in range(NUM_EPISODES):
             metric_steps.append(steps)
 
 m = Path(args.model_path).parts[-1].split('.')[0] + '.pickle'
-with open('results/' + m, 'wb') as fp:
+with open('results/' + m, 'wb+') as fp:
     d = {
         'success_rate': np.mean(metric_success),
         'metric_steps': metric_steps
     }
     pickle.dump(d, fp)
 env.close()
+print(d)
