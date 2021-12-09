@@ -87,7 +87,7 @@ def train_model(model, train_loader, loss_fn, optimizer, experiment_details,num_
 
         if eval_every != 0:
             if (epoch+1) % eval_every == 0:
-                eval_result = model.eval_in_env(experiment_details['env_name'], transform=transform, top_view=(experiment_details['view']=='top'))
+                eval_result = model.eval_in_env(experiment_details['env_name'], device=device, transform=transform, top_view=(experiment_details['view']=='top'))
                 logger.add_eval(epoch, eval_result) 
                 print('Success rate: ', eval_result['success_rate'], '    Steps: ', eval_result['metric_steps'])
 
@@ -97,7 +97,7 @@ def train_model(model, train_loader, loss_fn, optimizer, experiment_details,num_
             torch.save(d, save_path)
 
             # if (epoch+1) % eval_every == 0:
-            #     eval_result = model.eval_in_env(experiment_details['env_name'], transform=transform, top_view=(experiment_details['view']=='top'))
+            #     eval_result = model.eval_in_env(experiment_details['env_name'], device=device, transform=transform, top_view=(experiment_details['view']=='top'))
 
             # logger.add_eval(epoch, eval_result) 
 

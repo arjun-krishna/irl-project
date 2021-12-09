@@ -23,7 +23,7 @@ class ContextPredictionModel(nn.Module):
         out = self.mlp(features)
         return out 
 
-    def eval_in_env(self, env_name, transform, top_view=False, num_episodes=100, domain_rand=False):
+    def eval_in_env(self, env_name, transform, device, top_view=False, num_episodes=100, domain_rand=False):
         self.encoder.eval()
         self.mlp_bc.eval()
         
@@ -44,7 +44,7 @@ class ContextPredictionModel(nn.Module):
                 x = Image.fromarray(get_obs())
                 prev_a = 8
                 v = torch.zeros(9, dtype=torch.float); v[prev_a] = 1.0
-                inp = transform(x)
+                inp = transform(x).to(device)
                 output = self.encoder(inp[np.newaxis, :, :, :])
                 v = v[np.newaxis, :]
                 mlp_input = torch.cat((output, v), axis=1)
