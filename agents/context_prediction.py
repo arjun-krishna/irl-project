@@ -62,15 +62,15 @@ def train_model(model, train_loader, loss_fn, optimizer, experiment_details,num_
             # print(prev_a.shape)
             image_features_with_action = torch.cat((image_features, prev_a), dim=1)
             # print(image_features_with_action.shape)
-            # predicted_action = model.mlp_bc(image_features_with_action)
+            predicted_action = model.mlp_bc(image_features_with_action)
             # print('Prediction: ', prediction.dtype)
             # print('Label: ', label.reshape(-1).dtype)
             # print('Action Prediction: ', predicted_action.dtype)
             # print('Action Label: ', action_gt.reshape(-1).dtype)
             loss_cp = loss_fn(prediction, label_cp.reshape(-1)).to(device)
-            # loss_bc = loss_fn(predicted_action, label_bc.reshape(-1)).to(device)
+            loss_bc = loss_fn(predicted_action, label_bc.reshape(-1)).to(device)
             loss = loss_cp
-            # loss = loss_cp + loss_bc
+            loss = loss_cp + loss_bc
             optimizer.zero_grad()
             logger.add_loss(loss)
             avg_epoch_loss += loss
@@ -78,7 +78,7 @@ def train_model(model, train_loader, loss_fn, optimizer, experiment_details,num_
             optimizer.step()
             total_iters += 1
             if i%10==0:
-                print('CP Loss = {}, BC Loss = {}, Total Loss: {}'.format(loss_cp, 0, loss))
+                print('CP Loss = {}, BC Loss = {}, Total Loss: {}'.format(loss_cp, loss_bc, loss))
 
         avg_epoch_loss /= (i+1)
 
@@ -99,7 +99,7 @@ def train_model(model, train_loader, loss_fn, optimizer, experiment_details,num_
             # if (epoch+1) % eval_every == 0:
             #     eval_result = model.eval_in_env(experiment_details['env_name'], transform=transform, top_view=(experiment_details['view']=='top'))
 
-            logger.add_eval(epoch, eval_result) 
+            # logger.add_eval(epoch, eval_result) 
 
 
 if __name__ == '__main__':
