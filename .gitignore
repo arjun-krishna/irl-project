@@ -8,4 +8,5 @@ results/
 experiments/
 playground.ipynb
 representations/
+trained_agents/
 .ipynb_checkpoints/playground-checkpoint.ipynb

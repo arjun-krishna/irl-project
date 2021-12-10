@@ -12,6 +12,7 @@ from torchvision import transforms as T
 from PIL import Image
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+from torchvision.transforms import functional as F
 
 class MiniWorldDataset(Dataset):
 
@@ -179,13 +180,6 @@ class ContextPredictionDataset(DemoDataPreviousAction):
         # print('Cs:', center_patch.shape)
         return (x, label)
 
-
-
-
-
-
-        pass
-
     def get_input_shape_from_demo_folder(self, demo_folder):
         file_path = os.path.join(demo_folder, os.listdir(demo_folder)[0])
         d = load_demo(file_path)
@@ -212,3 +206,37 @@ class ContextPredictionDataset(DemoDataPreviousAction):
         # print('Patch Shape:', patch.shape)
         # print('Patch type:', type(patch))
         return patch
+
+class RotationPredictionDataset(DemoDataPreviousAction):
+    def __init__(self, demo_folder, nb_demos=50, input_shape='auto_infer', patch_mode='center'):
+        super().__init__(demo_folder=demo_folder, nb_demos=nb_demos)
+        self.patch_mode = patch_mode
+        self.input_shape = input_shape
+        if self.input_shape == 'auto_infer':
+            self.input_shape = self.get_input_shape_from_demo_folder(demo_folder)
+            self.transform = T.Compose([T.ToTensor()])
+        else:
+            self.transform = T.Compose([T.Resize(input_shape), T.ToTensor()])
+
+    def __getitem__(self, idx):
+        label_rp = np.random.choice(4)
+        theta = label_rp*np.pi/2
+        img1 = self.obs[idx]
+        prev_a = torch.from_numpy(self.prev_a[idx])
+        a = torch.from_numpy(self.a[idx])
+        img1 = Image.fromarray(img1)
+        img1 = self.transform(img1)
+        img2 = F.rotate(img1, angle=theta)
+        d = {'img1':img1,
+        'img2': img2,
+        'prev_a': prev_a
+        }
+        label = {'rp':label_rp,'bc': a.long()}
+
+        return (d, label)
+
+
+    def get_input_shape_from_demo_folder(self, demo_folder):
+        file_path = os.path.join(demo_folder, os.listdir(demo_folder)[0])
+        d = load_demo(file_path)
+        return np.array(d.observations[0].shape[:2])

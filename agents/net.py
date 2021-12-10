@@ -42,7 +42,7 @@ class Encoder(nn.Module):
         return x
 
 class MLP(nn.Module):
-    def __init__(self, dim=128, p=0.4) -> None:
+    def __init__(self, dim=128, out_dim=8, p=0.4) -> None:
         super().__init__()
         # In: 120
         self.fc = nn.Sequential(
@@ -52,7 +52,7 @@ class MLP(nn.Module):
             nn.Linear(64, 32),  # Out: 32
             nn.ReLU(inplace=True),
             nn.Dropout(p=p),
-            nn.Linear(32, 8)
+            nn.Linear(32, out_dim)
         )
     
     def forward(self, x):
