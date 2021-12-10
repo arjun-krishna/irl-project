@@ -151,6 +151,7 @@ if __name__ == '__main__':
     experiment_details['model_name'] = model_name
     experiment_details['transform'] = train_dataset.transform
     experiment_details['optimizer'] = optimizer.state_dict
+    experiment_details['view'] = 'top' if args.top_view else 'agent'
     save_path = './experiments/exp_' + str(time()) + '.pickle'
     
     best_weights = train_model(model, train_loader, loss_fn, optimizer,experiment_details, num_epochs=args.num_epochs, eval_every=args.eval_every, device = device, save_path=save_path, print_every=args.print_every, initial_weight=args.initial_weight, weight_decay=args.weight_decay)
