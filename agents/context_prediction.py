@@ -78,7 +78,6 @@ def train_model(model, train_loader, loss_fn, optimizer, experiment_details,num_
             loss_cp = loss_fn(prediction, label_cp.reshape(-1)).to(device)
             loss_bc = loss_fn(predicted_action, label_bc.reshape(-1)).to(device)
             loss = alpha*loss_cp + (1-alpha)*loss_bc
-            alpha = alpha - weight_decay
             optimizer.zero_grad()
             logger.log_metric('loss_bc', total_iters, loss_bc)
             logger.log_metric('loss_cp', total_iters, loss_cp)
@@ -91,6 +90,7 @@ def train_model(model, train_loader, loss_fn, optimizer, experiment_details,num_
                 print('CP Loss = {}, BC Loss = {}, Total Loss: {}'.format(loss_cp, loss_bc, loss))
 
         avg_epoch_loss /= (i+1)
+        alpha = alpha - weight_decay
 
         print('Epoch {}: , Avg Loss: {}'.format(epoch, avg_epoch_loss))
         print(50*'=')
@@ -104,7 +104,7 @@ def train_model(model, train_loader, loss_fn, optimizer, experiment_details,num_
             d = logger.getDict()
             d['experiment_details'] = experiment_details
             d['model_state_dict'] = model.state_dict
-            torch.save(d, save_path)
+        torch.save(d, save_path)
 
             # if (epoch+1) % eval_every == 0:
             #     eval_result = model.eval_in_env(experiment_details['env_name'], device=device, transform=transform, top_view=(experiment_details['view']=='top'))
