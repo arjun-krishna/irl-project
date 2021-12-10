@@ -17,6 +17,7 @@ def train_model(model, train_loader, loss_fn, optimizer, experiment_details,num_
     if not os.path.isdir(os.path.dirname(save_path)):
         os.makedirs(os.path.dirname(save_path))
     model_name = experiment_details['model_name']
+    use_prev_a = experiment_details['use_prev_a']
     logger = Logger(model_name)
     total_iters = 0
     transform = experiment_details['transform']
@@ -59,7 +60,7 @@ def train_model(model, train_loader, loss_fn, optimizer, experiment_details,num_
             alpha = alpha - weight_decay
             optimizer.zero_grad()
             logger.log_metric('loss_bc', total_iters, loss_bc)
-            logger.log_metric('loss_cp', total_iters, loss_rp)
+            logger.log_metric('loss_rp', total_iters, loss_rp)
             logger.log_metric('loss_total', total_iters, loss)
             avg_epoch_loss += loss
             loss.backward()
@@ -89,6 +90,18 @@ def train_model(model, train_loader, loss_fn, optimizer, experiment_details,num_
 
             # logger.add_eval(epoch, eval_result) 
 
+    print(' ================================  Evaluating final model 5 times ===============================================')
+    for eval_iter in range(5):
+        print('------------------------------------------ Eval ',eval_iter, ' ----------------------------------' )
+        eval_result = model.eval_in_env(experiment_details['env_name'], device=device, transform=transform, top_view=(experiment_details['view']=='top'), num_episodes=50)
+        print('Success rate: ', eval_result['success_rate'], '    Steps: ', eval_result['metric_steps'])
+        logger.log_metric('Final Eval Success rate', eval_iter + 1, eval_result['success_rate'])
+        logger.log_metric('Final Eval Steps', eval_iter + 1, eval_result['metric_steps'])
+        d = logger.getDict()
+        d['experiment_details'] = experiment_details
+        d['model_state_dict'] = model.state_dict
+        torch.save(d, save_path)
+
 
 if __name__ == '__main__':
     from argparse import ArgumentParser
@@ -107,6 +120,7 @@ if __name__ == '__main__':
     parser.add_argument('--print_every', type=int, default=30, help='print loss after every "print_every" iterations')
     parser.add_argument('--initial_weight', type=float, default=0.5, help='Initial weight for Context Prediction Loss')
     parser.add_argument('--weight_decay', type=float, default=0, help='Decay weight by this much every epoch')
+    parser.add_argument('--use_prev_a', action='store_true', help='Pass previous action as input to the model for predicting next action')
 
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 

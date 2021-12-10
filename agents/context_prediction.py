@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.serialization import save
 from torch.utils.data.dataloader import DataLoader
 from agents.models import ContextPredictionModel
 from core.dataset import ContextPredictionDataset
@@ -96,7 +97,7 @@ def train_model(model, train_loader, loss_fn, optimizer, experiment_details,num_
 
         if eval_every != 0:
             if (epoch+1) % eval_every == 0:
-                eval_result = model.eval_in_env(experiment_details['env_name'], device=device, transform=transform, top_view=(experiment_details['view']=='top'), num_episodes=100)
+                eval_result = model.eval_in_env(experiment_details['env_name'], device=device, transform=transform, top_view=(experiment_details['view']=='top'), num_episodes=50)
                 print('Success rate: ', eval_result['success_rate'], '    Steps: ', eval_result['metric_steps'])
                 logger.log_metric('Success rate', epoch, eval_result['success_rate'])
                 logger.log_metric('Steps', epoch, eval_result['metric_steps'])
@@ -109,9 +110,21 @@ def train_model(model, train_loader, loss_fn, optimizer, experiment_details,num_
             #     eval_result = model.eval_in_env(experiment_details['env_name'], device=device, transform=transform, top_view=(experiment_details['view']=='top'))
 
             # logger.add_eval(epoch, eval_result) 
+    # Evaluate final model 5 times
+    print(' ================================  Evaluating final model 5 times ===============================================')
+    for eval_iter in range(5):
+        print('------------------------------------------ Eval ',eval_iter, ' ----------------------------------' )
+        eval_result = model.eval_in_env(experiment_details['env_name'], device=device, transform=transform, top_view=(experiment_details['view']=='top'), num_episodes=50)
+        print('Success rate: ', eval_result['success_rate'], '    Steps: ', eval_result['metric_steps'])
+        logger.log_metric('Final Eval Success rate', eval_iter + 1, eval_result['success_rate'])
+        logger.log_metric('Final Eval Steps', eval_iter + 1, eval_result['metric_steps'])
+        d = logger.getDict()
+        d['experiment_details'] = experiment_details
+        d['model_state_dict'] = model.state_dict
+        torch.save(d, save_path)
 
 
-if __name__ == '__main__':
+if __name__ == '__main__':  
     from argparse import ArgumentParser
     parser = ArgumentParser()
     # Parse Command Line Arguments
