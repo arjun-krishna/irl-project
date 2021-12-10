@@ -25,24 +25,29 @@ def train_model(model, train_loader, loss_fn, optimizer, experiment_details,num_
     model = model.to(device)
     model.train()
     alpha = torch.tensor(initial_weight).to(device)
+
     for epoch in range(num_epochs):
         avg_epoch_loss = 0
         for i, (input, label) in enumerate(train_loader):
             patch1 = input['patch1'].to(device)
             patch2 = input['patch2'].to(device)
+
+            # ------- Load all variables from input dict and shift to device -------
+            observation = input['obs'].to(device)
+            prev_a = input['prev_a'].to(device)
+            label_cp = label['cp'].to(device)
+            label_bc = label['bc'].to(device)
+            # ----------------------------------------------------------------------
+
+            # ---------------------------------------  VISUALIZE EXTRACTED PATCHES  ----------------------------------------
             # patch1_loc = input['patch1_loc'][0].numpy()
             # patch2_loc = input['patch2_loc'][0].numpy()
             # p = input['patch_size'][0].item()
             # half_patch_size = np.array([p//2, p//2])
             # rect_patch1 = patches.Rectangle(tuple(patch1_loc - half_patch_size),p,p, linewidth=1, edgecolor='b', facecolor='none')
             # rect_patch2 = patches.Rectangle(tuple(patch2_loc - half_patch_size),p,p, linewidth=1, edgecolor='y', facecolor='none')
-
             # print('Center Loc', patch1_loc)
             # print('Random Loc', patch2_loc)
-            observation = input['obs'].to(device)
-            prev_a = input['prev_a'].to(device)
-            label_cp = label['cp'].to(device)
-            label_bc = label['bc'].to(device)
             # print('Label CP', label_cp[0])
             # f, (a0, a1, a2) = plt.subplots(1, 3, gridspec_kw={'width_ratios': [2, 1, 1]})
             # a0.imshow(observation[0].permute(1,2,0))
@@ -54,6 +59,7 @@ def train_model(model, train_loader, loss_fn, optimizer, experiment_details,num_
             # plt.tight_layout()
             # plt.show()
             # break
+            # --------------------------------------------------------------------------------------------------------------
             patch1_features = model.encoder(patch1)
             patch2_features = model.encoder(patch2)
             features = torch.cat([patch1_features, patch2_features], dim=1)
@@ -71,7 +77,7 @@ def train_model(model, train_loader, loss_fn, optimizer, experiment_details,num_
             loss_cp = loss_fn(prediction, label_cp.reshape(-1)).to(device)
             loss_bc = loss_fn(predicted_action, label_bc.reshape(-1)).to(device)
             loss = alpha*loss_cp + (1-alpha)*loss_bc
-            alpha -= weight_decay
+            alpha = alpha - weight_decay
             optimizer.zero_grad()
             logger.log_metric('loss_bc', total_iters, loss_bc)
             logger.log_metric('loss_cp', total_iters, loss_cp)
@@ -146,6 +152,5 @@ if __name__ == '__main__':
     experiment_details['transform'] = train_dataset.transform
     experiment_details['optimizer'] = optimizer.state_dict
     save_path = './experiments/exp_' + str(time()) + '.pickle'
-    print(vars(args))
     
     best_weights = train_model(model, train_loader, loss_fn, optimizer,experiment_details, num_epochs=args.num_epochs, eval_every=args.eval_every, device = device, save_path=save_path, print_every=args.print_every, initial_weight=args.initial_weight, weight_decay=args.weight_decay)
