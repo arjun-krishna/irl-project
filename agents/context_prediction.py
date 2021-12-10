@@ -101,9 +101,9 @@ def train_model(model, train_loader, loss_fn, optimizer, experiment_details,num_
                 print('Success rate: ', eval_result['success_rate'], '    Steps: ', eval_result['metric_steps'])
                 logger.log_metric('Success rate', epoch, eval_result['success_rate'])
                 logger.log_metric('Steps', epoch, eval_result['metric_steps'])
-            d = logger.getDict()
-            d['experiment_details'] = experiment_details
-            d['model_state_dict'] = model.state_dict
+        d = logger.getDict()
+        d['experiment_details'] = experiment_details
+        d['model_state_dict'] = model.state_dict
         torch.save(d, save_path)
 
             # if (epoch+1) % eval_every == 0:
