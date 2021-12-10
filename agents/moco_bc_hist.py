@@ -34,13 +34,14 @@ parser.add_argument('--nb-demos', default=50, type=int, help='number of demos to
 parser.add_argument('--batch-size', default=64, type=int, help='training batch size')
 parser.add_argument('--nb-epochs', default=20, type=int, help='number of epochs')
 parser.add_argument('--eval-epoch', default=10, type=int, help='run evaluate after specified epochs')
-parser.add_argument('--lr', default=5e-3, type=float, help='learning rate')
+parser.add_argument('--lr', default=0.01, type=float, help='learning rate')
 parser.add_argument('--seed', default=101, type=int, help='random seed')
+parser.add_argument('--no-hist', action='store_true', help='remove history action feature')
 args = parser.parse_args()
 
 if not os.path.exists('models/'):
     os.makedirs('models/')
-MODEL_NAME = 'D' + str(args.nb_demos) + '_moco_bc_hist'
+MODEL_NAME = 'D' + str(args.nb_demos) + '_moco_bc' + ('_hist' if not args.no_hist else '')
 MODEL_PATH = 'models/' + MODEL_NAME + '.pt'
 MODEL_METRICS_PATH = 'models/' + MODEL_NAME + '.pickle'
 
@@ -80,7 +81,7 @@ normalizer = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                 std=[0.229, 0.224, 0.225])
 
 augmentation = [
-    transforms.RandomResizedCrop(50, scale=(0.2, 1.)),
+    transforms.RandomResizedCrop(64, scale=(0.2, 1.)),
     RandomApply([
         transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)
     ], p=0.8),
@@ -100,23 +101,30 @@ train_dataset = DemoDataPreviousAction(args.data_path, args.nb_demos, data_trans
 train_loader = DeviceDataLoader(DataLoader(train_dataset, args.batch_size, shuffle=True), device)
 
 # moco params
-Q = 640
+Q = 128#640
 m = 0.999
 T = 0.04
 # ---
 
-encoder_q = to_device(Encoder(dim=128), device)
-encoder_k = to_device(Encoder(dim=128), device)
-mlp = to_device(MLP(dim=137), device)
+encoder_q = to_device(Encoder(), device)
+encoder_k = to_device(Encoder(), device)
+out_dim = 4096
+if args.no_hist:
+    mlp = to_device(MLP(dim=out_dim), device)
+else:
+    mlp = to_device(MLP(dim=out_dim + 9), device)
 
 for param_q, param_k in zip(encoder_q.parameters(), encoder_k.parameters()):
     param_k.data.copy_(param_q.data)  # initialize
     param_k.requires_grad = False  # not update by gradient
 
 def model_forward(sample):
-    q = encoder_q(sample['obs'][0])
-    x = torch.concat([q, sample['prev_a']], dim=1)
-    return mlp(x), q
+    e = encoder_q(sample['obs'][0])
+    if args.no_hist:
+        t = e
+    else:
+        t = torch.concat([e, sample['prev_a']], dim=1)
+    return mlp(t), e
 
 def evaluateInEnv():
     env = gym.make(args.env_name)
@@ -126,13 +134,13 @@ def evaluateInEnv():
     if args.domain_rand:
         env.domain_rand = True
 
-    NUM_EPISODES = 100
+    NUM_EPISODES = 50
 
     metric_steps = []
     metric_success = []
 
     trsf = transforms.Compose([
-        transforms.RandomResizedCrop(50, scale=(0.2, 1.)),
+        transforms.RandomResizedCrop(64, scale=(0.2, 1.)),
         transforms.ToTensor(),
         normalizer
     ])
@@ -173,11 +181,12 @@ def moco_loss(q, k, queue):
     return torch.mean(-torch.log(torch.div(pos, denom)))
 
 weights = [1., 1., 0.4, 0.01, 0.01, 0.01, 0.01, 0.01] # moving forward is quite likely
-class_weights = torch.FloatTensor(weights)
-cross_entropy = nn.CrossEntropyLoss()
+class_weights = to_device(torch.FloatTensor(weights), device)
+cross_entropy = nn.CrossEntropyLoss(weight=class_weights)
+#cross_entropy = nn.CrossEntropyLoss()
 params = list(encoder_q.parameters()) + list(mlp.parameters())
-optimizer = optim.Adam(params, lr=args.lr)
-scheduler = optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.9)
+optimizer = optim.Adam(params, lr=args.lr, weight_decay=1e-4)
+scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=args.lr, steps_per_epoch=len(train_loader), epochs=args.nb_epochs)
 
 model_metrics = ModelMetrics(MODEL_NAME)
 

@@ -21,52 +21,55 @@ warnings.filterwarnings("ignore")
 
 class EqNet(torch.nn.Module):
 
-    def __init__(self):
+    def __init__(self, args):
         super(EqNet, self).__init__()
 
         self.r2_act = gspaces.Rot2dOnR2(8)
         
         in_type = nn.FieldType(self.r2_act, 3*[self.r2_act.trivial_repr])
         self.input_type = in_type
-        out_type = nn.FieldType(self.r2_act, 4*[self.r2_act.regular_repr])
+        out32_type = nn.FieldType(self.r2_act, 32*[self.r2_act.regular_repr])
+        out64_type = nn.FieldType(self.r2_act, 64*[self.r2_act.regular_repr])
+        out128_type = nn.FieldType(self.r2_act, 128*[self.r2_act.regular_repr])
 
         self.blk1 = nn.SequentialModule(
-            nn.R2Conv(in_type, out_type, kernel_size=7),
-            nn.InnerBatchNorm(out_type),
-            nn.ReLU(out_type, inplace=True),
-            nn.PointwiseAvgPoolAntialiased(out_type, sigma=0.66, stride=2)
+            nn.R2Conv(in_type, out32_type, kernel_size=3, padding=1),
+            nn.ReLU(out32_type, inplace=True),
+            nn.InnerBatchNorm(out32_type),
+            nn.R2Conv(out32_type, out64_type, kernel_size=3, padding=1),
+            nn.ReLU(out64_type, inplace=True),
+            nn.InnerBatchNorm(out64_type),
+            nn.PointwiseMaxPool(out64_type, 2)
         )
 
         in_type = self.blk1.out_type
-        out_type = nn.FieldType(self.r2_act, 8*[self.r2_act.regular_repr])
         self.blk2 = nn.SequentialModule(
-            nn.R2Conv(in_type, out_type, kernel_size=7),
-            nn.InnerBatchNorm(out_type),
-            nn.ReLU(out_type, inplace=True)
+            nn.R2Conv(in_type, out64_type, kernel_size=3, padding=1),
+            nn.ReLU(out64_type, inplace=True),
+            nn.InnerBatchNorm(out64_type),
+            nn.R2Conv(out64_type, out128_type, kernel_size=3, padding=1),
+            nn.ReLU(out128_type, inplace=True),
+            nn.InnerBatchNorm(out128_type),
+            nn.PointwiseMaxPool(out128_type, 2)
         )
 
         in_type = self.blk2.out_type
-        out_type = nn.FieldType(self.r2_act, 16*[self.r2_act.regular_repr])
         self.blk3 = nn.SequentialModule(
-            nn.R2Conv(in_type, out_type, kernel_size=7),
-            nn.InnerBatchNorm(out_type),
-            nn.ReLU(out_type, inplace=True)
+            nn.R2Conv(in_type, out64_type, kernel_size=3, padding=1),
+            nn.ReLU(out64_type, inplace=True),
+            nn.InnerBatchNorm(out64_type),
+            nn.R2Conv(out64_type, out64_type, kernel_size=3, padding=1),
+            nn.ReLU(out64_type, inplace=True),
+            nn.InnerBatchNorm(out64_type),
+            nn.PointwiseMaxPool(out64_type, 2),
+            nn.GroupPooling(out64_type)
         )
 
-        in_type = self.blk3.out_type
-        out_type = nn.FieldType(self.r2_act, 8*[self.r2_act.regular_repr])
-        self.blk4 = nn.SequentialModule(
-            nn.R2Conv(in_type, out_type, kernel_size=3, padding=1),
-            nn.InnerBatchNorm(out_type),
-            nn.ReLU(out_type, inplace=True)
-        )
-
-        self.gpool = nn.GroupPooling(out_type)
-
-        self.ll = torch.nn.Linear(800, 128)
+        self.no_hist = args.no_hist
+        out_dim = 4096 + (0 if self.no_hist else 9)
 
         self.fc = torch.nn.Sequential(
-            torch.nn.Linear(137, 64),
+            torch.nn.Linear(out_dim, 64),
             torch.nn.ReLU(inplace=True),
             torch.nn.Linear(64, 32),
             torch.nn.ReLU(inplace=True),
@@ -77,11 +80,12 @@ class EqNet(torch.nn.Module):
         x = nn.GeometricTensor(sample['obs'], self.input_type)
         x = self.blk1(x)
         x = self.blk2(x)
-        x = self.blk3(x)
-        x = self.blk4(x)
-        x = self.gpool(x).tensor
-        x = self.ll(x.reshape(x.shape[0], -1))
-        x = self.fc(torch.concat([x, sample['prev_a']], dim=1))
+        x = self.blk3(x).tensor
+        if self.no_hist:
+            x = x.reshape(x.shape[0], -1)
+        else:
+            x = torch.concat([x.reshape(x.shape[0], -1), sample['prev_a']], dim=1)        
+        x = self.fc(x)
         return x
 
 parser = argparse.ArgumentParser()
@@ -93,13 +97,14 @@ parser.add_argument('--nb-demos', default=50, type=int, help='number of demos to
 parser.add_argument('--batch-size', default=64, type=int, help='training batch size')
 parser.add_argument('--nb-epochs', default=20, type=int, help='number of epochs')
 parser.add_argument('--eval-epoch', default=10, type=int, help='run evaluate after specified epochs')
-parser.add_argument('--lr', default=5e-3, type=float, help='learning rate')
+parser.add_argument('--lr', default=0.01, type=float, help='max learning rate')
 parser.add_argument('--seed', default=101, type=int, help='random seed')
+parser.add_argument('--no-hist', action='store_true', help='remove history action feature')
 args = parser.parse_args()
 
 if not os.path.exists('models/'):
     os.makedirs('models/')
-MODEL_NAME = 'D' + str(args.nb_demos) + '_eqnet'
+MODEL_NAME = 'D' + str(args.nb_demos) + '_eqnet' + ('_hist' if not args.no_hist else '')
 MODEL_PATH = 'models/' + MODEL_NAME + '.pt'
 MODEL_METRICS_PATH = 'models/' + MODEL_NAME + '.pickle'
 
@@ -140,7 +145,7 @@ normalizer = transforms.Normalize(mean=[0.485, 0.456, 0.406],
 
 data_transform = transforms.Compose([
     transforms.ToTensor(),
-    transforms.Resize((50, 50)),
+    transforms.Resize((64, 64)),
     normalizer
 ])
 
@@ -150,7 +155,7 @@ print(f'Using device = {device}')
 train_dataset = DemoDataPreviousAction(args.data_path, args.nb_demos, data_transform)
 train_loader = DeviceDataLoader(DataLoader(train_dataset, args.batch_size, shuffle=True), device)
 
-model = to_device(EqNet(), device)
+model = to_device(EqNet(args), device)
 
 def evaluateInEnv():
     env = gym.make(args.env_name)
@@ -160,7 +165,7 @@ def evaluateInEnv():
     if args.domain_rand:
         env.domain_rand = True
 
-    NUM_EPISODES = 100
+    NUM_EPISODES = 50
 
     metric_steps = []
     metric_success = []
@@ -171,7 +176,7 @@ def evaluateInEnv():
         prev_a = 8
         while not done:
             sample = {
-                'obs': data_transform(Image.fromarray(get_obs()))[np.newaxis, :, :, :],
+                'obs': torch.unsqueeze(data_transform(Image.fromarray(get_obs())), 0),
                 'prev_a': F.one_hot(torch.tensor([prev_a]), num_classes=9)
             }
             output = model(to_device(sample, device))
@@ -195,8 +200,8 @@ weights = [1., 1., 0.6, 0.01, 0.01, 0.01, 0.01, 0.01] # moving forward is quite 
 class_weights = torch.FloatTensor(weights)
 cross_entropy = torch.nn.CrossEntropyLoss()
 params = model.parameters()
-optimizer = optim.Adam(params, lr=args.lr)
-scheduler = optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.9)
+optimizer = optim.Adam(params, lr=args.lr, weight_decay=1e-4)
+scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=args.lr, steps_per_epoch=len(train_loader), epochs=args.nb_epochs)
 
 model_metrics = ModelMetrics(MODEL_NAME)
 
@@ -224,7 +229,6 @@ for epoch in range(args.nb_epochs):
         print('EVAL (success_rate) = ', eval_result['success_rate'])
         model_metrics.add_eval(epoch, eval_result) 
         model.train()
-
 
 model.eval()      
 eval_result = evaluateInEnv()

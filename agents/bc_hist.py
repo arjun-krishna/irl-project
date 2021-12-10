@@ -32,13 +32,14 @@ parser.add_argument('--nb-demos', default=50, type=int, help='number of demos to
 parser.add_argument('--batch-size', default=64, type=int, help='training batch size')
 parser.add_argument('--nb-epochs', default=20, type=int, help='number of epochs')
 parser.add_argument('--eval-epoch', default=10, type=int, help='run evaluate after specified epochs')
-parser.add_argument('--lr', default=5e-3, type=float, help='learning rate')
+parser.add_argument('--lr', default=0.01, type=float, help='maximum learning rate')
 parser.add_argument('--seed', default=101, type=int, help='random seed')
+parser.add_argument('--no-hist', action='store_true', help='remove history action feature')
 args = parser.parse_args()
 
 if not os.path.exists('models/'):
     os.makedirs('models/')
-MODEL_NAME = 'D' + str(args.nb_demos) + '_bc_hist'
+MODEL_NAME = 'D' + str(args.nb_demos) + '_bc' + ('_hist' if not args.no_hist else '')
 MODEL_PATH = 'models/' + MODEL_NAME + '.pt'
 MODEL_METRICS_PATH = 'models/' + MODEL_NAME + '.pickle'
 
@@ -78,12 +79,16 @@ normalizer = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                 std=[0.229, 0.224, 0.225])
 
 data_transform = transforms.Compose([
+    # transforms.CenterCrop(50),
+    # transforms.RandomAdjustSharpness(2., p=1.),
+    transforms.Resize((64, 64)),
     transforms.ToTensor(),
-    transforms.Resize((50, 50)),
     normalizer
 ])
 
 device = get_default_device()
+if device == 'cuda':
+    torch.cuda.empty_cache()
 print(f'Using device = {device}')
 
 train_dataset = DemoDataPreviousAction(args.data_path, args.nb_demos, data_transform)
@@ -92,13 +97,20 @@ train_loader = DeviceDataLoader(DataLoader(train_dataset, args.batch_size, shuff
 class ModelWithHist(nn.Module):
     def __init__(self):
         super().__init__()
-        self.enc = Encoder(dim=128)
-        self.mlp = MLP(dim=137)
+        self.enc = Encoder()
+        out_dim = 4096
+        if args.no_hist:
+            self.mlp = MLP(dim=out_dim)
+        else:
+            self.mlp = MLP(dim=out_dim + 9)
     
     def forward(self, sample):
         e = self.enc(sample['obs'])
-        X = torch.concat([e, sample['prev_a']], dim=1)
-        return self.mlp(X)
+        if args.no_hist:
+            t = e
+        else:
+            t = torch.concat([e, sample['prev_a']], dim=1)
+        return self.mlp(t)
 
 model = to_device(ModelWithHist(), device)
 
@@ -142,11 +154,11 @@ def evaluateInEnv():
     return d
 
 weights = [1., 1., 0.4, 0.01, 0.01, 0.01, 0.01, 0.01] # moving forward is quite likely
-class_weights = torch.FloatTensor(weights)
-cross_entropy = nn.CrossEntropyLoss()
+class_weights = to_device(torch.FloatTensor(weights), device)
+cross_entropy = nn.CrossEntropyLoss(weight=class_weights)
 params = model.parameters()
-optimizer = optim.Adam(params, lr=args.lr)
-scheduler = optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.9)
+optimizer = optim.Adam(params, lr=args.lr, weight_decay=1e-4)
+scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=args.lr, steps_per_epoch=len(train_loader), epochs=args.nb_epochs)
 
 model_metrics = ModelMetrics(MODEL_NAME)
 
