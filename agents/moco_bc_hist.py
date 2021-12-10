@@ -264,6 +264,10 @@ for epoch in range(args.nb_epochs):
 
 encoder_q.eval(); mlp.eval()
 eval_result = evaluateInEnv()
+print(
+    "Final Eval Results  = ",
+    eval_result['success_rate'], (np.mean(eval_result['metric_steps']), np.std(eval_result['metric_steps']))
+)
 model_metrics.add_eval(-1, eval_result) 
 
 torch.save({
