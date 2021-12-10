@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import pickle
 
-def train_model(model, train_loader, loss_fn, optimizer, experiment_details,num_epochs: int = 20, eval_every=5, save_path: str = './metrics/experiment.pickle', device=torch.device('cuda'), print_every=10):
+def train_model(model, train_loader, loss_fn, optimizer, experiment_details,num_epochs: int = 20, eval_every=5, save_path: str = './metrics/experiment.pickle', device=torch.device('cuda'), print_every=10, initial_weight=0.5, weight_decay=0.05):
     if not os.path.isdir(os.path.dirname(save_path)):
         os.makedirs(os.path.dirname(save_path))
     logger = Logger(model_name)
@@ -24,6 +24,7 @@ def train_model(model, train_loader, loss_fn, optimizer, experiment_details,num_
     transform = experiment_details['transform']
     model = model.to(device)
     model.train()
+    alpha = torch.tensor(initial_weight).to(device)
     for epoch in range(num_epochs):
         avg_epoch_loss = 0
         for i, (input, label) in enumerate(train_loader):
@@ -69,8 +70,8 @@ def train_model(model, train_loader, loss_fn, optimizer, experiment_details,num_
             # print('Action Label: ', action_gt.reshape(-1).dtype)
             loss_cp = loss_fn(prediction, label_cp.reshape(-1)).to(device)
             loss_bc = loss_fn(predicted_action, label_bc.reshape(-1)).to(device)
-            # loss = loss_cp
-            loss = loss_cp + loss_bc
+            loss = alpha*loss_cp + (1-alpha)*loss_bc
+            alpha -= weight_decay
             optimizer.zero_grad()
             logger.log_metric('loss_bc', total_iters, loss_bc)
             logger.log_metric('loss_cp', total_iters, loss_cp)
@@ -118,7 +119,9 @@ if __name__ == '__main__':
     parser.add_argument('--weighted_ce_loss', action='store_true', help='Use a weighted cross entropy loss')
     parser.add_argument('--env_name', type=str, default='MiniWorld-Hallway-v0',help='Name of environment: MiniWorld-Hallway-v0 or MiniWorld-YMaze-v0 or MiniWorld-OneRoom-v0 or MiniWorld-FourRooms-v0')
     parser.add_argument('--top_view', action='store_true', help='Switch to top view aka world view')
-    parser.add_argument('--print_every', type=int, help='print loss after every "print_every" iterations')
+    parser.add_argument('--print_every', type=int, default=30, help='print loss after every "print_every" iterations')
+    parser.add_argument('--initial_weight', type=float, default=0.5, help='Initial weight for Context Prediction Loss')
+    parser.add_argument('--weight_decay', type=float, default=0, help='Decay weight by this much every epoch')
 
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
@@ -138,16 +141,11 @@ if __name__ == '__main__':
     loss_fn = nn.CrossEntropyLoss(weight=class_weights) if args.weighted_ce_loss else nn.CrossEntropyLoss()
     params = list(model.encoder.parameters()) + list(model.mlp_cp.parameters()) + list(model.mlp_bc.parameters())
     optimizer = optim.Adam(params=params, lr=args.lr)
-    experiment_details = {
-        'model_name': model_name,
-        'type': 'first/normal',
-        'num_demos': args.num_demos,
-        'loss_fn': str(loss_fn), 
-        'lr': args.lr,
-        'view': view,
-        'env_name':args.env_name,
-        'transform': train_dataset.transform,
-        'optimizer':optimizer.state_dict
-    }
+    experiment_details = vars(args)
+    experiment_details['model_name'] = model_name
+    experiment_details['transform'] = train_dataset.transform
+    experiment_details['optimizer'] = optimizer.state_dict
     save_path = './experiments/exp_' + str(time()) + '.pickle'
-    best_weights = train_model(model, train_loader, loss_fn, optimizer,experiment_details, num_epochs=args.num_epochs, eval_every=args.eval_every, device = device, save_path=save_path, print_every=args.print_every)
+    print(vars(args))
+    
+    best_weights = train_model(model, train_loader, loss_fn, optimizer,experiment_details, num_epochs=args.num_epochs, eval_every=args.eval_every, device = device, save_path=save_path, print_every=args.print_every, initial_weight=args.initial_weight, weight_decay=args.weight_decay)
