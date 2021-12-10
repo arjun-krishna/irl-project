@@ -80,7 +80,7 @@ class DeviceDataLoader:
 normalizer = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                 std=[0.229, 0.224, 0.225])
 
-augmentation = [
+augmentation = transforms.Compose([
     transforms.RandomResizedCrop(64, scale=(0.2, 1.)),
     RandomApply([
         transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)
@@ -90,9 +90,9 @@ augmentation = [
     # do not apply horizontal flip (action could change based on that - not label preserving)
     transforms.ToTensor(),
     normalizer
-]
+])
 
-data_transform = TwoCropsTransform(transforms.Compose(augmentation))
+data_transform = TwoCropsTransform(augmentation)
 
 device = get_default_device()
 print(f'Using device = {device}')
@@ -139,19 +139,13 @@ def evaluateInEnv():
     metric_steps = []
     metric_success = []
 
-    trsf = transforms.Compose([
-        transforms.RandomResizedCrop(64, scale=(0.2, 1.)),
-        transforms.ToTensor(),
-        normalizer
-    ])
-
     for i in range(NUM_EPISODES):
         done = False
         steps = 0
         prev_a = 8
         while not done:
             sample = {
-                'obs': [torch.unsqueeze(trsf(Image.fromarray(get_obs())), 0)],
+                'obs': [torch.unsqueeze(augmentation(Image.fromarray(get_obs())), 0)],
                 'prev_a': F.one_hot(torch.tensor([prev_a]), num_classes=9)
             }
             output, _ = model_forward(to_device(sample, device))
