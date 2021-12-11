@@ -73,8 +73,8 @@ class RotationPredictionModel(nn.Module):
     def __init__(self):
         super().__init__()
         self.encoder = Encoder()
-        self.mlp_rp = MLP(dim=100352, out_dim=4)
-        self.mlp_bc = MLP(dim=50185)
+        self.mlp_rp = MLP(dim=4608, out_dim=4)
+        self.mlp_bc = MLP(dim=2313)
 
     def forward(self, x):
         image, prev_action = x
