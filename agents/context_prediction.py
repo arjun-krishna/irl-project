@@ -40,7 +40,7 @@ def train_model(model, train_loader, loss_fn, optimizer, experiment_details,num_
             label_bc = label['bc'].to(device)
             # ----------------------------------------------------------------------
 
-            # ---------------------------------------  VISUALIZE EXTRACTED PATCHES  ----------------------------------------
+            # ---------------------  Visualize Extracted Patches (Uncomment block to enable visualizations)   ------------------
             # patch1_loc = input['patch1_loc'][0].numpy()
             # patch2_loc = input['patch2_loc'][0].numpy()
             # p = input['patch_size'][0].item()
@@ -54,7 +54,7 @@ def train_model(model, train_loader, loss_fn, optimizer, experiment_details,num_
             # a0.imshow(observation[0].permute(1,2,0))
             # a0.add_patch(rect_patch1)
             # a0.add_patch(rect_patch2)
-            # plt.title('Label CP: ' + str(label_cp[0].item()) + '  Label BC: ' + str(label_bc[0].item()))
+            # # plt.title('Label CP: ' + str(label_cp[0].item()) + '  Label BC: ' + str(label_bc[0].item()))
             # a1.imshow(patch1[0].permute(1,2,0))
             # a2.imshow(patch2[0].permute(1,2,0))
             # plt.tight_layout()
@@ -116,7 +116,7 @@ def train_model(model, train_loader, loss_fn, optimizer, experiment_details,num_
         print('------------------------------------------ Eval ',eval_iter, ' ----------------------------------' )
         eval_result = model.eval_in_env(experiment_details['env_name'], device=device, transform=transform, top_view=(experiment_details['view']=='top'), num_episodes=50)
         print('Success rate: ', eval_result['success_rate'], '    Steps: ', eval_result['metric_steps'])
-        logger.log_metric('Final Eval Success rate', eval_iter + 1, eval_result['success_rate'])
+        logger.log_metric('Final Eval Success Rate', eval_iter + 1, eval_result['success_rate'])
         logger.log_metric('Final Eval Steps', eval_iter + 1, eval_result['metric_steps'])
         d = logger.getDict()
         d['experiment_details'] = experiment_details
